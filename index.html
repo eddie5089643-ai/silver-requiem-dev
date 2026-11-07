@@ -768,6 +768,7 @@ const THEMES={
 const PLATS=[];
 for(let k=1;k<=6;k++){const y=GROUND-118*k,off=(k%2)*190;for(let x=off-190;x<WW;x+=430){const x0=Math.max(30,x),x1=Math.min(WW-30,x+350);if(x1-x0>60)PLATS.push({x:x0,y,w:x1-x0});}}
 const RUINS=[];for(let i=0;i<14;i++)RUINS.push({x:120+i*260+rnd(-40,40),h:rnd(60,220),w:rnd(16,26),broken:Math.random()<.5});
+let PCLS='melee';const CLS_NAME={melee:'近戰',ranged:'遠程'},CLS_DMG={melee:'近戰傷害',ranged:'遠程傷害'};
 const DIFFS=[{spd:1,dmg:1,cnt:1,hp:.165,hard:false},{spd:1.15,dmg:1.6,cnt:1.3,hp:.33,hard:true}];
 let diffI=1,D=DIFFS[1];
 const N=n=>Math.max(1,Math.round(n*D.cnt));
@@ -781,7 +782,7 @@ let cam={x:WW/2-W/2,y:WH-H},bgL=0,stats={time:0,parries:0,hits:0},introT=0,endT=
 function newPlayer(){const p={x:WW/2-400,y:GROUND-36,w:8,h:36,vx:0,vy:0,face:1,onG:true,jumps:0,flight:110,fmax:110,
   hp:200,mhp:200,iframes:0,dashT:0,dashCD:0,dashDir:1,lastTapDir:0,lastTapT:-99,drop:0,atkCD:0,sw:null,combo:0,comboWin:0,swId:0,
   parryT:0,parryCD:0,parryBuf:0,potCD:0,runPh:0,flying:false,dead:false,bladeL:44,bladeW:34,rx:0,ry:0,handL:[0,0],laNow:0,swLA:0,
-  sheathed:true,combatT:999,stun:0,dashI:0,sheatheT:0,rage:0,rageOn:false,wtr:[],weapon:'katana',gunLA:0,recoil:0,ammo:60,ammoMax:60,reload:0,fireCD:0,swapT:0,muzzleW:null};
+  sheathed:true,combatT:999,stun:0,dashI:0,sheatheT:0,rage:0,rageOn:false,wtr:[],weapon:PCLS==='ranged'?'gun':'katana',cls:PCLS,gunLA:0,recoil:0,ammo:60,ammoMax:60,reload:0,fireCD:0,swapT:0,muzzleW:null};
   p.hair=makeChain(9,p.x,p.y);return p;}
 const pc=()=>({x:P.x+P.w/2,y:P.y+P.h/2-2});
 const pShoulder=p=>[p.rx+2.5*PS*p.face,p.ry-31*PS];
@@ -841,7 +842,7 @@ function updPlayer(){
     if(p.reload>0){p.reload--;if(p.reload===0){p.ammo=p.ammoMax;SFX.reload(true);}}
     if(!st&&pressed['r']&&p.ammo<p.ammoMax&&p.reload<=0){p.reload=55;SFX.reload();}
     if(!st&&mouse.l&&p.fireCD<=0&&p.reload<=0&&p.parryT<=0&&p.swapT<=0&&p.ammo>0){
-      p.ammo--;p.fireCD=p.rageOn?4:6;p.recoil=2.2;p.combatT=0;const mz=p.muzzleW||[p.rx,sy];
+      p.ammo--;p.fireCD=p.cls==='ranged'?(p.rageOn?3:5):12;p.recoil=2.2;p.combatT=0;const mz=p.muzzleW||[p.rx,sy];
       pshots.push({x:mz[0],y:mz[1],px:mz[0],py:mz[1],vx:Math.cos(aim)*20,vy:Math.sin(aim)*20,life:42});
       fx.push({type:'muzzle',x:mz[0],y:mz[1],a:aim,life:4,max:4});SFX.gun();addShake(.5);
       parts.push({x:p.rx,y:p.ry-26*PS,vx:-p.face*rnd(.8,1.6),vy:-rnd(1.5,2.6),life:34,max:34,col:'#c8c8d4',size:1,grav:.16});
@@ -851,8 +852,8 @@ function updPlayer(){
   if(!st&&p.weapon==='katana'&&mouse.l&&p.atkCD<=0&&p.parryT<=0&&!p.sw){
     const aim=Math.atan2(mw.y-c.y,mw.x-c.x);p.face=Math.cos(aim)>=0?1:-1;
     const aimL=Math.atan2(Math.sin(aim),Math.cos(aim)*p.face);
-    const idx=p.comboWin>0?(p.combo+1)%3:0;p.combo=idx;const cd=COMBO[idx];
-    const iai=p.sheathed||p.sheatheT>0;p.sheathed=false;p.sheatheT=0;p.combatT=0;
+    const idx=p.cls!=='melee'?0:(p.comboWin>0?(p.combo+1)%3:0);p.combo=idx;const cd=COMBO[idx];
+    const iai=p.cls==='melee'&&(p.sheathed||p.sheatheT>0);p.sheathed=false;p.sheatheT=0;p.combatT=0;
     p.sw=iai?{t:0,dur:15,from:aimL+2.2,to:aimL-1.9,hit:false,id:++p.swId,cd,aim,qi:false,iai}:{t:0,dur:cd.dur,from:aimL+cd.a0,to:aimL+cd.a1,hit:false,id:++p.swId,cd,aim,qi:false,iai};
     p.atkCD=cd.dur+1;SFX.swing(idx===2);if(iai){SFX.iai();addShake(2);if(p.rageOn){SFX.rift();flash=.25;flashCol='255,255,255';}}
   }
@@ -893,7 +894,7 @@ function updPlayer(){
     if(!q.hit&&boss&&!boss.dead&&!boss.hidden){const hb=bossHurt(boss);if(ptSeg(q.x,q.y,hb.a[0],hb.a[1],hb.b[0],hb.b[1])<hb.r+q.r*.7){q.hit=true;playerHitsBoss(q.dmg||46,q.x,q.y,q.a+Math.PI/2);}}}
   pqi=pqi.filter(q=>q.life>0);
   for(const q of pshots){q.px=q.x;q.py=q.y;q.x+=q.vx;q.y+=q.vy;q.life--;if(q.y>GROUND)q.life=0;
-    if(q.life>0&&boss&&!boss.dead&&!boss.hidden){const hb=bossHurt(boss);if(segDist([q.px,q.py],[q.x,q.y],hb.a,hb.b)<hb.r+2){q.life=0;playerHitsBoss(10,q.x,q.y,Math.atan2(q.vy,q.vx)+Math.PI/2,true);}}}
+    if(q.life>0&&boss&&!boss.dead&&!boss.hidden){const hb=bossHurt(boss);if(segDist([q.px,q.py],[q.x,q.y],hb.a,hb.b)<hb.r+2){q.life=0;playerHitsBoss(P&&P.cls==='ranged'?16:10,q.x,q.y,Math.atan2(q.vy,q.vx)+Math.PI/2,true);}}}
   pshots=pshots.filter(q=>q.life>0);
 }
 function playerHitsBoss(base,x,y,ang,light){
@@ -2011,6 +2012,7 @@ function drawHUD(){
   // 武器欄（1 切換）
   for(const [i,wn] of [[0,'katana'],[1,'gun']]){const x=W-62+i*18,y=48,on=p.weapon===wn;R(x,y,16,16,on?'rgba(255,255,255,.16)':'rgba(0,0,0,.5)');R(x,y,16,1,on?'#ffffff':'#444');R(x,y+15,16,1,on?'#ffffff':'#444');
     icon(wn==='katana'?'sword':'gun',x+8,y+8,on?'#ffffff':'#666');T(String(i+1),x+3,y+3.5,5,on?'#ffffff':'#777');}
+  {const off=(p.cls==='melee'&&p.weapon==='gun')||(p.cls==='ranged'&&p.weapon==='katana');T(tr(off?'基本攻擊':CLS_DMG[p.cls||'melee']),W-45,80,5.5,off?'#888':'#b8a0ff','center');}
   if(p.weapon==='gun'){R(W-62,67,34,3,'#333');R(W-62,67,34*p.ammo/p.ammoMax,3,'#ffffff');if(p.reload>0)R(W-62,72,34*(1-p.reload/55),1.4,'#cfe0ff');}
   if(customFlash>0){customFlash--;icon('note',W-36,36,'#8cffb0');}
   // 下方：Boss 生命與架勢
@@ -2067,6 +2069,7 @@ function drawHUD(){
 //  主迴圈
 // =====================================================================
 let SAVE={beaten:{},mat:0},winMat=0;try{SAVE=JSON.parse(localStorage.getItem('silverRequiem2'))||SAVE;}catch(e){}
+try{if(SAVE.cls==='melee'||SAVE.cls==='ranged')PCLS=SAVE.cls;}catch(e){}
 function saveGame(){try{localStorage.setItem('silverRequiem2',JSON.stringify(SAVE));}catch(e){}}
 function handleInput(){
   if(pressed['m'])toggleMusic();
@@ -2425,7 +2428,7 @@ const DICT={'單人模式':'Singleplayer','多人模式':'Multiplayer','設定':
   '無敵模式':'God mode','自動瞄準':'Aimbot','生命已補滿':'Health restored','跳到第 ':'Jumped to phase ',' 階段':'','用法：/phase 1~4':'Usage: /phase 1~4','未知指令：':'Unknown command: ',
   'Boss 血條已清空，進入最終招':'Boss HP emptied — final stand begins','Boss 血條已清空':'Boss HP emptied','跳過最終招':'Final stand skipped','目前沒有可清空的 Boss':'No boss to clear','怒氣已回滿':'Rage refilled','請先進入戰鬥':'Enter a battle first',
   '補血藥水無冷卻':'No potion cooldown','手機介面':'Mobile UI','多人模式中只有房主能用 /phase、/kill':'Only the host can use /phase and /kill in multiplayer','多人模式沒有怒氣':'No rage in multiplayer',
-  '選擇 Boss':'Choose a Boss','困難獎勵：材料':'Hard reward: materials','（共':'(total','戰鬥中不能切換難度':'Cannot change difficulty during battle','難度：':'Difficulty: ','只有房主能切換難度':'Only the host can change difficulty','音樂欣賞':'Music Room','▶ 播放':'▶ Play','❚❚ 暫停':'❚❚ Pause','■ 停止':'■ Stop','載入中…':'Loading…','主選單':'Main Menu','第一階段':'Phase I','第二階段':'Phase II','第三階段':'Phase III','第四階段':'Phase IV','最終謝幕':'Final Curtain','觀戰中 · 左鍵切換':'Spectating · Click to switch','左鍵：觀戰其他玩家':'Click: spectate a teammate','難度':'Mode','普通':'Normal','困難':'Hard','極難':'Extreme','開發中':'In development','彈幕密集度 ×2、Boss 最大血量 +50%':'2× bullet density, boss max HP +50%','標準難度':'Standard difficulty','操作說明':'Controls','左右移動（連按兩下：閃避）':'Move (double-tap: dodge)','閃避':'Dodge','空白鍵 / W':'Space / W','跳躍、飛行':'Jump / fly','滑鼠左鍵':'Left mouse','攻擊（刀）／射擊（槍）':'Slash (katana) / shoot (gun)','滑鼠右鍵 / F':'Right mouse / F','振刀（黃光攻擊可彈反，紅光不行）':'Parry (yellow flashes only, not red)','切換刀／手槍':'Switch katana / gun','換彈':'Reload','補血藥水':'Healing potion','聊天／指令（T 或 /，↑ 叫回上一句，輸入 /help）':'Chat / commands (T or /, ↑ recalls last, /help)','暫停':'Pause','鏡中銀影':'Silver Reflection','敬請期待':'Coming soon','？？？':'???','— 撐過 30 秒 —':'— Survive 30 seconds —','復活倒數 ':'Respawn in ','全員陣亡':'PARTY WIPED','清空Boss血條':'empty boss HP','回滿怒氣':'full rage','藥水無冷卻':'no potion CD',
+  '選擇 Boss':'Choose a Boss','建立角色':'Create Character','選擇職業 · 單人模式：白髮女角':'Choose a class · Singleplayer: white-haired heroine','太刀・冷兵器':'Katana · blades','格擋：振刀':'Guard: blade parry','槍・弓':'Gun · bow','格擋：舉武器擋':'Guard: weapon block','開發中':'In development','近戰傷害':'Melee dmg','遠程傷害':'Ranged dmg','基本攻擊':'Basic attack','職業：':'Class: ','更換':'Change','近戰':'Melee','遠程':'Ranged','魔法':'Magic','輔助':'Support','盜賊':'Rogue','困難獎勵：材料':'Hard reward: materials','（共':'(total','戰鬥中不能切換難度':'Cannot change difficulty during battle','難度：':'Difficulty: ','只有房主能切換難度':'Only the host can change difficulty','音樂欣賞':'Music Room','▶ 播放':'▶ Play','❚❚ 暫停':'❚❚ Pause','■ 停止':'■ Stop','載入中…':'Loading…','主選單':'Main Menu','第一階段':'Phase I','第二階段':'Phase II','第三階段':'Phase III','第四階段':'Phase IV','最終謝幕':'Final Curtain','觀戰中 · 左鍵切換':'Spectating · Click to switch','左鍵：觀戰其他玩家':'Click: spectate a teammate','難度':'Mode','普通':'Normal','困難':'Hard','極難':'Extreme','開發中':'In development','彈幕密集度 ×2、Boss 最大血量 +50%':'2× bullet density, boss max HP +50%','標準難度':'Standard difficulty','操作說明':'Controls','左右移動（連按兩下：閃避）':'Move (double-tap: dodge)','閃避':'Dodge','空白鍵 / W':'Space / W','跳躍、飛行':'Jump / fly','滑鼠左鍵':'Left mouse','攻擊（刀）／射擊（槍）':'Slash (katana) / shoot (gun)','滑鼠右鍵 / F':'Right mouse / F','振刀（黃光攻擊可彈反，紅光不行）':'Parry (yellow flashes only, not red)','切換刀／手槍':'Switch katana / gun','換彈':'Reload','補血藥水':'Healing potion','聊天／指令（T 或 /，↑ 叫回上一句，輸入 /help）':'Chat / commands (T or /, ↑ recalls last, /help)','暫停':'Pause','鏡中銀影':'Silver Reflection','敬請期待':'Coming soon','？？？':'???','— 撐過 30 秒 —':'— Survive 30 seconds —','復活倒數 ':'Respawn in ','全員陣亡':'PARTY WIPED','清空Boss血條':'empty boss HP','回滿怒氣':'full rage','藥水無冷卻':'no potion CD',
   '無敵':'god','補滿':'heal','跳階段':'phase','手機介面':'mobile UI','：開':': ON','：關':': OFF','此瀏覽器不支援全屏：iPhone 請用「分享 → 加入主畫面」再開啟':'Fullscreen not supported here. On iPhone use Share → Add to Home Screen'};
 const DICTK=Object.keys(DICT).sort((a,b)=>b.length-a.length);
 function tr(t){t=String(t);if(LANG!=='en')return t;for(const k of DICTK)if(t.includes(k))t=t.split(k).join(DICT[k]);return t;}
@@ -2439,11 +2442,11 @@ function langApply(){for(const sel of ['#tmenu','#mpRoot','#mob']){const r=docum
 {const _ms=mpStatus;mpStatus=function(t){return _ms(t);};}
 
 const TM={panel:null};
-function tmSingle(){if(MP.on)return;try{audioInit();}catch(e){}TM.panel='boss';TM.mode='single';tmUI();}
+function tmSingle(){if(MP.on)return;try{audioInit();}catch(e){}TM.panel='cls';TM.mode='single';tmUI();}
 function tmPick(bi){const m=TM.mode;TM.panel=null;tmUI();if(m==='mp'){if(MP.host)mpHostStart(bi);}else startFight(bi);}
 function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show=state==='title';
   r.style.display=show?'':'none';const items=document.getElementById('tItems');items.style.display=(!TM.panel&&!MP.open)?'':'none';
-  document.getElementById('tSet').style.display=TM.panel==='set'?'block':'none';document.getElementById('tMus').style.display=TM.panel==='music'?'block':'none';if(TM.panel!=='music'&&SMP.prev!==undefined){SMP.prev=undefined;SMP.pPause=null;if(SMP.bg){if(SMP.cur)smpFadeOut(SMP.cur,.3);SMP.cur=SMP.bg;SMP.bg=null;}}document.getElementById('tBoss').style.display=TM.panel==='boss'?'block':'none';
+  document.getElementById('tSet').style.display=TM.panel==='set'?'block':'none';document.getElementById('tMus').style.display=TM.panel==='music'?'block':'none';if(TM.panel!=='music'&&SMP.prev!==undefined){SMP.prev=undefined;SMP.pPause=null;if(SMP.bg){if(SMP.cur)smpFadeOut(SMP.cur,.3);SMP.cur=SMP.bg;SMP.bg=null;}}document.getElementById('tBoss').style.display=TM.panel==='boss'?'block':'none';{const tc=document.getElementById('tCls');if(tc)tc.style.display=TM.panel==='cls'?'block':'none';const cl=document.getElementById('tClsLine');if(cl){cl.innerHTML=tr('職業：')+tr(CLS_NAME[PCLS])+(TM.mode==='single'?'<button id="tClsChg">'+tr('更換')+'</button>':'');const cb=document.getElementById('tClsChg');if(cb)cb.onclick=()=>{TM.panel='cls';tmUI();};}}
   const mpp=document.getElementById('mpPanel');if(mpp&&TM.panel==='boss')mpp.style.display='none';
   const mo=document.getElementById('mpOpen');if(mo)mo.style.display='none';
   const mv=document.getElementById('tMv'),sv=document.getElementById('tSv');if(mv&&document.activeElement!==mv)mv.value=Math.round((music.on?musicVol:0)*100);if(sv&&document.activeElement!==sv)sv.value=Math.round(sfxVol*100);
@@ -2480,19 +2483,30 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
 #tSet .n{width:2.4em;text-align:right;font-variant-numeric:tabular-nums;color:#fff}
 #tSet button,#mpPanel button{font-family:"Noto Serif TC",serif}
 #tBoss{display:none;position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);width:min(560px,94vw);padding:18px 18px 16px;pointer-events:auto;color:#e8e8f2}
+#tCls{display:none;position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);width:min(560px,94vw);padding:18px 18px 16px;pointer-events:auto;color:#e8e8f2}
 #tBoss .diff{display:flex;align-items:center;gap:8px;margin:0 0 6px}#tBoss .diff span{color:#cfcfdc;letter-spacing:.15em;font-size:14px;width:3.5em}
 #tBoss .d{flex:1;padding:7px 4px;border:1px solid #6a6880;background:#15141f;color:#fff;font:14px "Noto Serif TC",serif;letter-spacing:.15em;border-radius:3px;cursor:pointer}
 #tBoss .d.sel{background:#e8e8f2;color:#111;border-color:#fff}#tBoss .d.dis{opacity:.4;cursor:not-allowed}#tBoss .d small{display:block;font-size:10px;letter-spacing:0;color:#aaa}
 #tBoss .dnote{font-size:12px;color:#a8a6c0;min-height:16px;margin:0 0 10px 4.2em}
 #tBoss .cards{display:flex;gap:12px;justify-content:center}
+#tCls .cards{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}#tCls .card{min-width:92px}#tCls .card .q{font-size:34px;color:#cfcfdc;height:52px}#tCls .card.lock .q{color:#555}#tCls .cnote{text-align:center;font-size:12px;color:#a8a6c0;margin:-4px 0 12px}#tCls .card small{font-family:"Noto Serif TC",serif}
+#tBoss .clsline{text-align:center;font-size:13px;color:#cfcfdc;margin:-4px 0 12px;letter-spacing:.1em}#tBoss .clsline button{margin-left:8px;padding:2px 10px;border:1px solid #6a6880;background:#15141f;color:#fff;border-radius:3px;cursor:pointer;font:12px "Noto Serif TC",serif}
 #tBoss .card{flex:1;max-width:170px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border:1px solid #6a6880;background:#12111a;color:#fff;border-radius:3px;font-family:"Noto Serif TC",serif;cursor:pointer;transition:transform .12s,box-shadow .12s}
+#tCls .card{flex:1;max-width:170px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border:1px solid #6a6880;background:#12111a;color:#fff;border-radius:3px;font-family:"Noto Serif TC",serif;cursor:pointer;transition:transform .12s,box-shadow .12s}
 #tBoss button.card:hover{transform:translateY(-3px);border-color:#fff;box-shadow:0 0 18px rgba(210,200,255,.45)}
+#tCls button.card:hover{transform:translateY(-3px);border-color:#fff;box-shadow:0 0 18px rgba(210,200,255,.45)}
 #tBoss .card img{width:72px;height:72px;image-rendering:pixelated;filter:drop-shadow(0 0 8px rgba(220,210,255,.6))}
+#tCls .card img{width:72px;height:72px;image-rendering:pixelated;filter:drop-shadow(0 0 8px rgba(220,210,255,.6))}
 #tBoss .card b{font-size:15px;letter-spacing:.12em}#tBoss .card small{font-size:11px;color:#a8a6c0;font-family:"UnifrakturMaguntia",serif}
+#tCls .card b{font-size:15px;letter-spacing:.12em}#tCls .card small{font-size:11px;color:#a8a6c0;font-family:"UnifrakturMaguntia",serif}
 #tBoss .card.lock{opacity:.45;cursor:default}#tBoss .card .q{width:72px;height:72px;display:flex;align-items:center;justify-content:center;font-size:40px;color:#555}
+#tCls .card.lock{opacity:.45;cursor:default}#tCls .card .q{width:72px;height:72px;display:flex;align-items:center;justify-content:center;font-size:40px;color:#555}
 #tBoss .card.lock small{font-family:"Noto Serif TC",serif}
+#tCls .card.lock small{font-family:"Noto Serif TC",serif}
 #tBoss .back{display:block;margin:14px auto 0;width:50%;padding:8px;border:1px solid #e6e6ee;background:none;color:#fff;font-size:15px;letter-spacing:.3em;cursor:pointer;border-radius:3px;font-family:"Noto Serif TC",serif}
+#tCls .back{display:block;margin:14px auto 0;width:50%;padding:8px;border:1px solid #e6e6ee;background:none;color:#fff;font-size:15px;letter-spacing:.3em;cursor:pointer;border-radius:3px;font-family:"Noto Serif TC",serif}
 #tBoss .back:hover{background:#2a2840}
+#tCls .back:hover{background:#2a2840}
 #tSet .b{flex:1;padding:8px;border-radius:3px;border:1px solid #6a6880;background:#15141f;color:#fff;font-size:14px;cursor:pointer;letter-spacing:.1em}
 #tSet .b.sel{background:#e8e8f2;color:#111;border-color:#fff}
 #tSet .back{display:block;margin:14px auto 0;width:60%;padding:8px;border:1px solid #e6e6ee;background:none;color:#fff;font-size:15px;letter-spacing:.3em;cursor:pointer;border-radius:3px}
@@ -2535,7 +2549,14 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
   <input id="tMusSeek" type="range" min="0" max="1000" value="0">
   <div class="mctl"><button class="b" id="tMusPlay">▶ 播放</button><button class="b" id="tMusStop">■ 停止</button></div>
   <button class="back" id="tMusBack">返回</button></div>
-<div id="tBoss" class="lace"><h2>選擇 Boss</h2>
+<div id="tCls" class="lace"><h2>建立角色</h2><div class="cnote">選擇職業 · 單人模式：白髮女角</div><div class="cards">
+  <button class="card" data-c="melee"><span class="q">⚔</span><b>近戰</b><small>太刀・冷兵器</small><small>格擋：振刀</small></button>
+  <button class="card" data-c="ranged"><span class="q">➶</span><b>遠程</b><small>槍・弓</small><small>格擋：舉武器擋</small></button>
+  <div class="card lock"><span class="q">✦</span><b>魔法</b><small>開發中</small></div>
+  <div class="card lock"><span class="q">✚</span><b>輔助</b><small>開發中</small></div>
+  <div class="card lock"><span class="q">✧</span><b>盜賊</b><small>開發中</small></div></div>
+  <button class="back" id="tClsBack">返回</button></div>
+<div id="tBoss" class="lace"><h2>選擇 Boss</h2><div class="clsline" id="tClsLine"></div>
   <div class="cards">
   <button class="card" data-b="0"><img id="tBossImg" alt=""><b>鏡中銀影</b><small>The Silver Reflection</small></button>
   <div class="card lock"><span class="q">？</span><b>？？？</b><small>敬請期待</small></div>
@@ -2562,7 +2583,9 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
   $('tBossImg').src=BICON[0].src;
   for(const c of root.querySelectorAll('button.card'))c.onclick=()=>tmPick(+c.dataset.b);
   for(const d of root.querySelectorAll('#tBoss .d'))d.onclick=()=>{if(d.disabled)return;GAMEDIFF=+d.dataset.d;tmUI();};
-  $('tBossBack').onclick=()=>{TM.panel=null;tmUI();mpUI();};
+  $('tBossBack').onclick=()=>{TM.panel=TM.mode==='single'?'cls':null;tmUI();mpUI();};
+  $('tClsBack').onclick=()=>{TM.panel=null;tmUI();mpUI();};
+  for(const c of root.querySelectorAll('#tCls button.card'))c.onclick=()=>{PCLS=c.dataset.c;SAVE.cls=PCLS;saveGame();TM.panel='boss';tmUI();};
   // 多人：房主按「開始戰鬥」後才選 Boss
   document.getElementById('mpStart').onclick=()=>{if(!MP.host)return;TM.panel='boss';TM.mode='mp';tmUI();};
   $('tMv').oninput=e=>{setVol(e.target.value/100);tmUI();};
