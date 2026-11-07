@@ -655,7 +655,7 @@ function drawPlayerRig(x,p,C){
     PL(x,[[-3,-33+bob],[1.5,-33+bob],[-1.5+cs*.4,-23+bob],[-6+cs*.7,-15.5+bob],[-8.5+cs*.9,-17+bob],[-6.5+cs*.5,-25+bob]],C.cape);L(x,[-2.5,-31+bob],[-6+cs*.6,-18+bob],.9,C.capeL);}
   // 刀鞘（佩於左腰、刀柄朝前）
   const mouth=[4.5,-24+bob],end=[-30,-9+bob+(run?Math.sin(ph)*1.2:0)+clamp(lvx*.6,-3,3)];
-  const sd=p.noWeapon?[end[0]-mouth[0],end[1]-mouth[1]]:scabbardLocal(x,mouth,end,C);
+  const sd=p.noWeapon||(p.weapon&&p.weapon!=='katana')?[end[0]-mouth[0],end[1]-mouth[1]]:scabbardLocal(x,mouth,end,C);
   // 後手
   const gunMode=(p.weapon==='gun'||p.weapon==='bow')&&!p.sw,blockMode=gunMode&&p.parryT>0;
   const sheathed=(p.sheathed||gunMode)&&!p.sw&&(p.parryT<=0||gunMode);
@@ -728,7 +728,7 @@ function drawPlayerRig(x,p,C){
   // 前手＋刀
   const sh=[2.5,-31+bob];let la,hand,Ln=p.bladeL||44;
   if(p.noWeapon){hand=[3.5+(run?Math.sin(ph)*3:Math.sin(t/40)*.3),-22+bob];const el=[(sh[0]+hand[0])/2+.6,(sh[1]+hand[1])/2];L(x,sh,el,A?2.6:2.4,A?C.lace:C.skin);L(x,el,hand,2.2,C.skin);p.handL=[hand[0]*PS,hand[1]*PS];p.laNow=0;p.bladeW=0;return;}
-  if(gunMode){const sa=Math.atan2(sd[1],sd[0]);swordLocal(x,[mouth[0]-Math.cos(sa)*2.2,mouth[1]-Math.sin(sa)*2.2],sa,0,C);
+  if(gunMode){
     la=blockMode?(p.weapon==='bow'?-1.45:-1.2):(p.gunLA||0);hand=blockMode?[sh[0]+4.5,sh[1]-3.5]:[sh[0]+Math.cos(la)*(p.weapon==='bow'?10:8),sh[1]+Math.sin(la)*(p.weapon==='bow'?10:8)];const el=[(sh[0]+hand[0])/2,(sh[1]+hand[1])/2+.8];
     L(x,sh,el,2.4,C.skin);L(x,el,hand,2.2,C.skin);
     if(blockMode){const bs=[-2.5,-31+bob],h2=[hand[0]-Math.cos(la)*(p.weapon==='bow'?-6:5),hand[1]-Math.sin(la)*(p.weapon==='bow'?-6:5)];L(x,bs,[(bs[0]+h2[0])/2+1,(bs[1]+h2[1])/2+1.5],2.3,C.skinS);L(x,[(bs[0]+h2[0])/2+1,(bs[1]+h2[1])/2+1.5],h2,2.1,C.skinS);}
@@ -894,7 +894,7 @@ function updPlayer(){
   if(p.parryT>0){p.parryT--;if(p.parryT===0&&!p.parryHit)SFX.whiff();}
   // 連斬
   // 1：切換武器（太刀／手槍）
-  if(pressed['1']&&p.weapon!=='katana'){p.swapBuf=24;p.swapTo='katana';}if(pressed['2']&&p.weapon!=='gun'){p.swapBuf=24;p.swapTo='gun';}if(pressed['3']&&p.weapon!=='bow'){p.swapBuf=24;p.swapTo='bow';}if(p.swapBuf>0)p.swapBuf--;
+  {const OW=typeof ownedW==='function'?ownedW():['katana','gun','bow'];OW.forEach((wn,i)=>{if(pressed[String(i+1)]&&p.weapon!==wn){p.swapBuf=24;p.swapTo=wn;}});}if(p.swapBuf>0)p.swapBuf--;
   if(!st&&p.swapBuf>0&&!p.sw){p.swapBuf=0;p.weapon=p.swapTo;p.bowDraw=0;p.bowHeld=false;p.swapT=10;SFX.swap();p.sheathed=true;p.combatT=999;}
   if(p.swapT>0)p.swapT--;
   if(p.weapon==='gun'){
@@ -1723,7 +1723,7 @@ function update(){
   if(MP.on&&P.dead)mpDeadStep();
   if(MP.on&&P.dead&&!MP.wipeT&&!(MP.allDeadT>0)){P.respawnT=(P.respawnT||900)-1;if(P.respawnT<=0){P.dead=false;P.respawnT=0;P.hp=P.mhp;P.iframes=150;P.x=WW/2-430;P.y=GROUND-P.h;P.vx=P.vy=0;P.deadT=0;P.graved=false;MP.spec=null;const c0=pc();ring(c0.x,c0.y,'#ffffff',6,30);part(c0.x,c0.y,30,'#ffffff',3,30);SFX.heal();}}
   if(MP.on&&!MP.host){mpClientBoss();}
-  else if(boss&&boss.dormant){updMirror();}
+  else if(boss&&boss.dormant){if(mirror)updMirror();}
   else if(boss){
     if(MP.on&&MP.rex)mpRemoteExec();else{if(MP.on)mpPreBoss();runBoss(boss);if(MP.on)mpPostBoss();}
     // 鏈條物理
@@ -2267,7 +2267,7 @@ function drawHUD(){
   icon('dash',W-96,36,p.dashCD<=0?'#ffffff':(p.d2&&has('move.dash2')?'#ffe9a8':'#444'));icon('parry',W-76,36,p.parryCD<=0?'#ffe9a8':'#444');
   icon('potion',W-56,36,p.potCD<=0?'#8cffb0':'#2c4a36');if(p.potCD>0)R(W-60,31,8,10*p.potCD/2700,'rgba(0,0,0,.6)');T('3',W-49,41,5.5,'#9a9aa8');
   // 武器欄（1 切換）
-  for(const [i,wn] of [[0,'katana'],[1,'gun'],[2,'bow']]){const x=W-80+i*18,y=48,on=p.weapon===wn;R(x,y,16,16,on?'rgba(255,255,255,.16)':'rgba(0,0,0,.5)');R(x,y,16,1,on?'#ffffff':'#444');R(x,y+15,16,1,on?'#ffffff':'#444');
+  for(const [i,wn] of (typeof ownedW==='function'?ownedW():['katana','gun','bow']).map((w,i)=>[i,w])){const x=W-80+i*18,y=48,on=p.weapon===wn;R(x,y,16,16,on?'rgba(255,255,255,.16)':'rgba(0,0,0,.5)');R(x,y,16,1,on?'#ffffff':'#444');R(x,y+15,16,1,on?'#ffffff':'#444');
     icon(wn==='katana'?'sword':wn,x+8,y+8,on?'#ffffff':'#666');T(String(i+1),x+3,y+3.5,5,on?'#ffffff':'#777');}
   {const off=(p.cls==='melee'&&p.weapon!=='katana')||(p.cls==='ranged'&&p.weapon==='katana');T(tr(off?'基本攻擊':CLS_DMG[p.cls||'melee']),W-54,80,5.5,off?'#888':'#b8a0ff','center');}
   if(p.weapon==='bow'){R(W-80,67,52,3,'#333');R(W-80,67,52*p.bowDraw,3,p.bowDraw>=1?'#ffe9a8':'#ffffff');}
@@ -2968,7 +2968,7 @@ const NPCS=[
      return {lines:['哥布林首領倒下前一直喊著「龍在呼喚」……','狼族人也開始騷動了。這一切，恐怕都和龍族有關。','（demo：主線一的後續還在開發中）']};}},
   {id:'merchant',x:640,name:'旅行商人',male:true,pal:{hairL:'#c89a6a',hairM:'#9a6c44',hairD:'#5e3e24',blk:'#5a2e2e',blk2:'#3e1e1e',blk3:'#7a4444',lace:'#e0c890',laceS:'#a89058'},face:1,
    talk(){SAVE.rumor=Object.assign(SAVE.rumor||{},{m2:1});saveGame();
-     return {lines:['要買點什麼嗎？……開玩笑的，貨都被帝國的人徵走了。','東邊的帝國最近到處徵兵，還派人去挖什麼古代遺跡。','聽說挖出來的東西會自己發光……世界最東邊有座鏡之祭壇，我是不想再往東走了。']};}},
+     return {lines:['要買點什麼嗎？……開玩笑的，貨都被帝國的人徵走了。','東邊的帝國最近到處徵兵，還派人去挖什麼古代遺跡。','聽說挖出來的東西會自己發光……我是不想再往東走了。']};}},
   {id:'guard',x:1420,name:'老守衛',male:true,pal:{hairL:'#9a9aa0',hairM:'#6c6c74',hairD:'#44444c',blk:'#44484c',blk2:'#2e3236',blk3:'#666c72',lace:'#b8b8c0',laceS:'#80808a'},face:-1,
    talk(){SAVE.rumor=Object.assign(SAVE.rumor||{},{m3:1});saveGame();
      return {lines:['就是我把你從路邊撿回來的。你倒下的時候，手裡還緊緊握著武器。','……你聽過湖底的歌聲嗎？晚上有時候會從北邊的湖傳過來。','老一輩說那是「無光裔」在唱歌。別在守門的人面前提這個詞，他們很忌諱。']};}},
@@ -2976,7 +2976,6 @@ const NPCS=[
 const SIGNS=[
   {x:200,text(){return (SAVE.quests||{}).m1?'西方森林：挑戰史萊姆首領':'西方森林（先和村長談談）';},act(){if(!(SAVE.quests||{}).m1)return false;TOWN.inFight=true;TOWN.backX=230;startFight(1);}},
   {x:90,text(){return ((SAVE.quests||{}).m1||0)>=2?'森林深處：挑戰哥布林首領':'森林深處（先打倒史萊姆首領）';},act(){if(((SAVE.quests||{}).m1||0)<2)return false;TOWN.inFight=true;TOWN.backX=120;startFight(2);}},
-  {x:1880,text:'東方・帝國的鏡之試煉（主線二中期）：挑戰鏡中銀影',act(){TOWN.inFight=true;TOWN.backX=1840;startFight(0);}},
 ];
 function townRng(seed){let s=seed;return()=>{s=(s*9301+49297)%233280;return s/233280;};}
 function townBuild(){
@@ -3078,8 +3077,6 @@ function drawTownUI(){
   T('任務',14,qy,7,'#b8a0ff','left');qy+=12;
   if(q.m1){T('主線一：森林的異變 — '+(q.m1===1?'討伐史萊姆首領':q.m1===2?'討伐哥布林首領':'後續開發中'),14,qy,6.5,'#e8e8f0','left');qy+=11;}
   else{T('和村長談談',14,qy,6.5,'#9a98b0','left');qy+=11;}
-  if(q.m2===2){T('主線二：鏡中銀影已擊敗 — 後續開發中',14,qy,6.5,'#e8e8f0','left');qy+=11;}
-  else if(r.m2){T('主線二（demo）：到東邊的鏡之試煉挑戰鏡中銀影',14,qy,6.5,'#e8e8f0','left');qy+=11;}
   if(r.m3){T('傳聞：北邊的湖底傳來歌聲',14,qy,6,'#8a88a0','left');qy+=10;}
   T('A/D 移動　W 跳　E 對話　Esc 標題',W/2,H-10,6,'rgba(220,220,235,.55)');
   if(TOWN.toastT>0){const a=Math.min(1,TOWN.toastT/30);cx.globalAlpha=a;R(W/2-150,56,300,20,'rgba(10,8,20,.8)');R(W/2-150,56,300,1,'#b8a0ff');T(TOWN.toast,W/2,66,7,'#ffffff');cx.globalAlpha=1;}
@@ -3236,9 +3233,13 @@ function buildSideArt(){if(SA.ok)return;SA.ok=true;
 // ---------- 進入世界 ----------
 let WP=null;const WCAM={x:0,y:0};
 const SIDE={time:.74,fires:[],ui:null,dlg:null,toast:'',toastT:0,lock:0,regName:'',regT:0,shots:[],atmo:[]};
+// 職業武器：建立角色時只拿到自己職業的武器
+const CLS_WEAPONS={melee:['katana'],ranged:['gun','bow'],magic:[],support:[],rogue:[]};
+function ownedW(){const c=typeof curChar==='function'?curChar():null;if(c){if(!c.weapons)c.weapons=(CLS_WEAPONS[c.cls]||['katana']).slice();return c.weapons.length?c.weapons:['katana'];}return (CLS_WEAPONS[PCLS]||['katana']).slice();}
+const W_INFO={katana:['sword','⚔','太刀'],gun:['gun','▬','手槍'],bow:['bow','➶','弓']};
 function curWorldMeta(){return typeof curW==='function'?curW():null;}
 function worldEnter(back){const meta=curWorldMeta();if(!meta){toTitle();return;}buildSideArt();
-  const p=newPlayer();p.outfit=curOutfit();p.pal=OUTFITS[p.outfit].pal;p.w=10;p.h=36;const sx=meta.px&&back!==false?meta.px:CAMP_X+50;
+  const p=newPlayer();p.outfit=curOutfit();p.pal=OUTFITS[p.outfit].pal;p.w=10;p.h=36;p.weapon=ownedW()[0];const sx=meta.px&&back!==false?meta.px:CAMP_X+50;
   p.x=sx;p.y=groundY(sx)-p.h;p.vx=p.vy=0;p.face=1;p.sheathed=true;p.onG=true;p.hair=makeChain(9,p.x,p.y);applyHair(p);WP=p;
   SIDE.time=typeof meta.time==='number'?meta.time:.74;SIDE.dlg=null;SIDE.lock=20;SIDE.regName='';sideNpcs();
   WCAM.x=p.x-W/2;WCAM.y=groundY(p.x)-372;state='world';boss=null;paused=false;setMusic('title',-1);try{tmUI();}catch(e){}
@@ -3290,7 +3291,7 @@ function worldUpdate(){frameN++;const p=WP,info=dayInfo();SIDE.time=(SIDE.time+1
     if(p.dashCD>0)p.dashCD--;
     if((pressed[' ']||pressed['w']||pressed['arrowup'])&&p.onG){p.vy=-8.6;p.onG=false;}
     if(!(keys[' ']||keys['w']||keys['arrowup'])&&p.vy<-3)p.vy*=.82;
-    for(const [k,wn] of [['1','katana'],['2','gun'],['3','bow']])if(pressed[k]){p.weapon=wn;SFX.swap();}
+    ownedW().forEach((wn,i)=>{if(pressed[String(i+1)]&&p.weapon!==wn){p.weapon=wn;SFX.swap();}});
     const mw={x:WCAM.x+mouse.x,y:WCAM.y+mouse.y},c={x:p.x+p.w/2,y:p.y+p.h/2-4},aim=Math.atan2(mw.y-c.y,mw.x-c.x);
     if(!p.sw)p.face=Math.cos(aim)>=0?1:-1;p.gunLA=Math.atan2(Math.sin(aim),Math.cos(aim)*p.face);
     if(p.atkCD>0)p.atkCD--;
@@ -3321,7 +3322,7 @@ function drawWorldT(){const info=dayInfo(),cx0=Math.round(WCAM.x),cy0=Math.round
   const top=lerpC(lerpC([10,12,30],[70,120,190],day),[70,50,100],dk*.8),bot=lerpC(lerpC([30,28,60],[180,210,230],day),[240,140,90],Math.min(1,dk));
   for(let i=0;i<10;i++){const k=i/9;g.fillStyle=`rgb(${lerpC(top,bot,k)})`;g.fillRect(0,Math.floor(i*H/10*.85),W,Math.ceil(H/10*.85)+1);}g.fillStyle=`rgb(${bot})`;g.fillRect(0,Math.floor(H*.85),W,H);
   if(info.night>.3)for(let k=0;k<90;k++){const tw=(k*7+frameN/20|0)%5===0?.4:1;g.fillStyle=`rgba(255,255,255,${(info.night-.3)*tw})`;g.fillRect((k*137+11)%W,(k*71+5)%(H*.55)|0,1,1);}
-  {const a=info.sunUp?(info.t-.2)/.6:((info.t+.2)%1)/.4,ox=Math.round(W*.1+a*W*.8),oy=Math.round(H*.6-Math.sin(a*Math.PI)*H*.45);
+  {const a=info.sunUp?(info.t-.2)/.6:((info.t+.2)%1)/.4,ox=Math.round(W*.1+a*W*.8),oy=Math.round(H*.6-Math.sin(a*Math.PI)*H*.45);SIDE.sun={x:ox,y:oy,up:info.sunUp,elev:Math.sin(a*Math.PI)};
     if(info.sunUp){g.globalAlpha=.35;PX.disc(g,ox,oy,26,'#fff0c0');g.globalAlpha=1;PX.disc(g,ox,oy,15,'#fff3c8');}else{PX.disc(g,ox,oy,12,'#e8e8f4');PX.disc(g,ox+5,oy-3,10,`rgb(${top})`);}}
   // 雲（像素）
   for(let k=0;k<5;k++){const cxk=((k*310-cx0*.05+frameN*.03)%(W+200)+W+200)%(W+200)-100,cyk=40+k*23%70;g.fillStyle=`rgba(${lerpC([60,60,90],[240,240,250],day)},.55)`;for(let j=0;j<4;j++)g.fillRect(Math.round(cxk+j*14-20),Math.round(cyk-(j%2)*5),30,6);}
@@ -3335,8 +3336,6 @@ function drawWorldT(){const info=dayInfo(),cx0=Math.round(WCAM.x),cy0=Math.round
   g.fillStyle=`rgba(8,10,30,${info.night*.35})`;g.fillRect(0,0,W,H);
   // 世界（平移）
   g.save();g.translate(-cx0,-cy0);
-  // 森林光柱（像素階梯）
-  if(day>.2&&(wts.forest+wts.camp)>0){for(let i=0;i<5;i++){const wx=Math.floor(cx0/700)*700+i*260+((i*97)%120),a=(.06+.03*Math.sin(frameN/200+i))*day*(wts.forest+wts.camp)*.8;for(let s=0;s<8;s++){g.fillStyle=`rgba(220,240,230,${a*(1-s/8)})`;g.fillRect(wx+s*10,cy0+s*40,26-s,40);}}}
   // 地面
   g.drawImage(SA.ground,cx0,0,W+2,SA.ground.height,cx0,SA.gTop,W+2,SA.ground.height);
   // 場景物件
@@ -3371,6 +3370,7 @@ function drawWorldT(){const info=dayInfo(),cx0=Math.round(WCAM.x),cy0=Math.round
   if(info.night>.05){if(!SIDE.dl)SIDE.dl=mk(W,H);const dl=SIDE.dl,x=dl.getContext('2d');x.globalCompositeOperation='source-over';x.clearRect(0,0,W,H);x.fillStyle=`rgba(4,5,18,${info.night*.62})`;x.fillRect(0,0,W,H);
     x.globalCompositeOperation='destination-out';for(const [lx,ly,r] of lights){const sx=lx-cx0,sy=ly-cy0;if(sx<-r||sx>W+r)continue;x.drawImage(soft(Math.round(r),'rgba(0,0,0,1)'),sx-Math.round(r),sy-Math.round(r));}x.globalAlpha=1;x.globalCompositeOperation='source-over';g.drawImage(dl,0,0);
     g.save();g.globalCompositeOperation='lighter';for(const [lx,ly,r,col,a] of lights){const sx=lx-cx0,sy=ly-cy0;if(sx<-r||sx>W+r)continue;g.globalAlpha=.35*a*info.night;g.drawImage(soft(Math.round(r*.7),`rgba(${col},.6)`),sx-Math.round(r*.7),sy-Math.round(r*.7));}g.restore();}
+  sideGodRays(info,cx0,cy0,wts);
   // 粒子：落葉、塵埃、螢火蟲、火星
   const A=SIDE.atmo;if(A.length<80&&frameN%3===0){const r=Math.random(),forest=wts.forest+wts.camp;
     if(info.night>.5&&forest>.4&&r<.4)A.push({k:'fly',x:cx0+Math.random()*W,y:cy0+gs-30-Math.random()*130,vx:0,vy:0,life:300,max:300,ph:Math.random()*9});
@@ -3386,7 +3386,7 @@ function drawWorldT(){const info=dayInfo(),cx0=Math.round(WCAM.x),cy0=Math.round
   if(!SIDE.vig){const c=mk(W,H),x=c.getContext('2d'),gr=x.createRadialGradient(W/2,H/2,H*.35,W/2,H/2,H*.95);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,8,.5)');x.fillStyle=gr;x.fillRect(0,0,W,H);SIDE.vig=c;}g.drawImage(SIDE.vig,0,0);
   if(SIDE.sleep>0){g.fillStyle=`rgba(0,0,0,${1-Math.abs(SIDE.sleep-45)/45})`;g.fillRect(0,0,W,H);}}
 function drawWorldUI(){const p=WP,t=INV.open?null:sideNear();
-  for(const [i,wn,label] of [[0,'katana','sword'],[1,'gun','gun'],[2,'bow','bow']]){const x=10+i*30,y=10,on=p.weapon===wn;R(x,y,26,26,on?'rgba(255,255,255,.16)':'rgba(9,9,13,.72)');const bc=on?'#ffffff':'#6a6880';R(x,y,26,1,bc);R(x,y+25,26,1,bc);R(x,y,1,26,bc);R(x+25,y,1,26,bc);icon(label,x+13,y+13,on?'#ffffff':'#a8a6c0');T(String(i+1),x+4,y+5,5,'#cfcfdc','left');}
+  for(const [i,wn,label] of ownedW().map((w,i)=>[i,w,W_INFO[w][0]])){const x=10+i*30,y=10,on=p.weapon===wn;R(x,y,26,26,on?'rgba(255,255,255,.16)':'rgba(9,9,13,.72)');const bc=on?'#ffffff':'#6a6880';R(x,y,26,1,bc);R(x,y+25,26,1,bc);R(x,y,1,26,bc);R(x+25,y,1,26,bc);icon(label,x+13,y+13,on?'#ffffff':'#a8a6c0');T(String(i+1),x+4,y+5,5,'#cfcfdc','left');}
   const hearts=10,per=p.mhp/hearts;for(let i=0;i<hearts;i++){const v=clamp((p.hp-i*per)/per,0,1),x=W-14-(hearts-1-i)*13,y=14;spr2(heartSpr('#3a1018','#200a10'),x-4.5,y-4,1);if(v>0){cx.globalAlpha=.4+.6*v;spr2(heartSpr('#ff4060','#a01428'),x-4.5,y-4,1);cx.globalAlpha=1;}}
   const m=Math.floor(SIDE.time*24*60);T(((dayInfo().night>.5)?'☾ ':'☀ ')+String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0'),W-14,30,6,'#e8e8f0','right');
   if(t&&!SIDE.dlg){const x=t.x-WCAM.x,y=groundY(t.x)-(t.k==='npc'?60:t.k==='tent'?76:30)-WCAM.y;keycap(x-6,y-7,12,'E');T(t.label,x,y-14,6.5,'#ffe9a8');}
@@ -3394,7 +3394,7 @@ function drawWorldUI(){const p=WP,t=INV.open?null:sideNear();
     rows.forEach((r,k)=>{const y=y0-(rows.length-1-k)*11;for(const [ox,oy] of [[-.7,0],[.7,0],[0,-.7],[0,.7]])T(r,x+ox,y+oy,7,'#0a0a10');T(r,x,y,7,'#ffffff');});if(d.t>=d.lines[d.i].length&&frameN%40<26)T('▼',x,y0+9,5.5,'#ffe9a8');}
   if(SIDE.regT>0){const a=Math.min(1,SIDE.regT/40,(200-SIDE.regT)/30);cx.globalAlpha=a;T('— '+SIDE.regName+' —',W/2,70,12,'#ffffff');cx.globalAlpha=1;}
   if(SIDE.toastT>0){cx.globalAlpha=Math.min(1,SIDE.toastT/30);T(SIDE.toast,W/2,96,7,'#e8e8f0');cx.globalAlpha=1;}
-  if(!INV.open)T('A/D 移動（連按兩下衝刺）　W 跳　左鍵 攻擊　1/2/3 武器　E 互動　Tab 背包　Esc 存檔離開',W/2,H-6,5.5,'rgba(220,220,235,.5)');}
+  if(!INV.open)T('A/D 移動（連按兩下衝刺）　W 跳　左鍵 攻擊　'+(ownedW().length>1?'1/'+ownedW().length+' 武器　':'')+'E 互動　Tab 背包　Esc 存檔離開',W/2,H-6,5.5,'rgba(220,220,235,.5)');}
 
 // =====================================================================
 //  Tab：背包／技能樹／召喚 Boss（介面風格同主選單：黑底白蕾絲框）
@@ -3427,20 +3427,60 @@ function invClose(){INV.open=false;const r=document.getElementById('invRoot');if
 .node b{display:block;font-size:12.5px;color:#cfcfdc}.node small{color:#7a7890;font-size:10.5px}
 .bl{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.bl .col h3{margin:0 0 8px;text-align:center;font-size:14px;letter-spacing:.2em;color:#b8a0ff}
 .brow{display:flex;align-items:center;gap:8px;padding:5px 8px;margin-bottom:5px;border:1px solid #3a3850;background:#12111a;font-size:12.5px}
+.arenabar{display:flex;align-items:center;gap:12px;justify-content:center;margin:0 0 12px;font-size:13px;color:#cfcfdc}.arenabar button{padding:6px 16px;border:1px solid #fff;background:#e8e8f2;color:#111;font:14px "Noto Serif TC",serif;letter-spacing:.2em;border-radius:3px;cursor:pointer}.arenabar button:hover{background:#fff}
 .brow i{font-style:normal;width:1.6em;color:#8a88a0;font-family:ui-monospace,monospace}.brow span{flex:1}.brow button{padding:2px 8px;border:1px solid #4a4860;background:#15141f;color:#7a7890;font:11px "Noto Serif TC",serif;border-radius:3px;cursor:not-allowed}`;
   document.head.appendChild(st);const r=document.createElement('div');r.id='invRoot';r.innerHTML='<div class="panel lace"><div class="tabs"><button data-t="bag">背包</button><button data-t="tree">技能樹</button><button data-t="boss">召喚 Boss</button></div><div class="body" id="invBody"></div><div class="hint">Tab 或 Esc 關閉</div></div>';
   document.body.appendChild(r);for(const b of r.querySelectorAll('.tabs button'))b.onclick=()=>{INV.tab=b.dataset.t;invUI();SFX.swap();};
   addEventListener('keydown',e=>{if(state==='world'&&INV.open&&e.key==='Escape'){invClose();e.stopImmediatePropagation();}},true);})();
 function invUI(){const r=document.getElementById('invRoot');if(!r)return;r.style.display=INV.open?'block':'none';if(!INV.open)return;
   for(const b of r.querySelectorAll('.tabs button'))b.classList.toggle('sel',b.dataset.t===INV.tab);const B=document.getElementById('invBody'),ch=typeof curChar==='function'?curChar():null;
-  if(INV.tab==='bag'){const items=[['katana','⚔','太刀'],['gun','▬','手槍'],['bow','➶','弓']];let h='<div class="bagwrap"><div class="me"><canvas id="invMe" width="60" height="72"></canvas><b>'+(ch?esc(ch.name):'')+'</b><small>'+tr(CLS_NAME[PCLS]||'')+'　·　'+tr((OUTFITS[WP.outfit]||{}).name||'')+'</small></div><div class="grid">';
-    for(let i=0;i<30;i++){const it=items[i];h+=it?'<div class="slot'+(WP.weapon===it[0]?' eq':'')+'" data-w="'+it[0]+'"><i>'+(i+1)+'</i>'+it[1]+'<small>'+it[2]+'</small></div>':'<div class="slot"></div>';}
-    B.innerHTML=h+'</div></div>';for(const s of B.querySelectorAll('.slot[data-w]'))s.onclick=()=>{WP.weapon=s.dataset.w;SFX.swap();invUI();};
-    const c=document.getElementById('invMe'),x=c.getContext('2d');x.imageSmoothingEnabled=false;const rg=outfitRig(WP.outfit),q=Object.assign({},WP,{vx:0,sw:null,onG:true,face:1,rx:0,ry:0});q.hair=makeChain(9,0,-30);for(let i=0;i<40;i++)stepChain(q.hair,-2,-33,3.3*PS,.22,.86,0);
-    const out=rg.render(z=>drawPlayerRig(z,q,WP.pal));x.drawImage(out,rg.ox-30,rg.oy-66,60,72,0,0,60,72);}
+  if(INV.tab==='bag'){const items=ownedW().map(w=>[w,W_INFO[w][1],W_INFO[w][2]]);let h='<div class="bagwrap"><div class="me"><canvas id="invMe" width="60" height="72"></canvas><b>'+(ch?esc(ch.name):'')+'</b><small>'+tr(CLS_NAME[PCLS]||'')+'　·　'+tr((OUTFITS[(inArena()?P:WP).outfit]||{}).name||'')+'</small></div><div class="grid">';
+    const PL=inArena()?P:WP;for(let i=0;i<30;i++){const it=items[i];h+=it?'<div class="slot'+(PL.weapon===it[0]?' eq':'')+'" data-w="'+it[0]+'"><i>'+(i+1)+'</i>'+it[1]+'<small>'+it[2]+'</small></div>':'<div class="slot"></div>';}
+    B.innerHTML=h+'</div></div>';for(const s of B.querySelectorAll('.slot[data-w]'))s.onclick=()=>{(inArena()?P:WP).weapon=s.dataset.w;SFX.swap();invUI();};
+    const c=document.getElementById('invMe'),x=c.getContext('2d');x.imageSmoothingEnabled=false;const PQ=inArena()?P:WP,rg=outfitRig(PQ.outfit||'adventurer'),q=Object.assign({},PQ,{vx:0,sw:null,onG:true,face:1,rx:0,ry:0});q.hair=makeChain(9,0,-30);for(let i=0;i<40;i++)stepChain(q.hair,-2,-33,3.3*PS,.22,.86,0);
+    const out=rg.render(z=>drawPlayerRig(z,q,PQ.pal||OUTFITS.adventurer.pal));x.drawImage(out,rg.ox-30,rg.oy-66,60,72,0,0,60,72);}
   else if(INV.tab==='tree'){B.innerHTML='<div class="tree">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.filter(n=>n!=='（待定）').map(n=>'<div class="node">🔒<b>'+n+'</b><small>打敗後解鎖・招式待設計</small></div>').join('')+'</div>').join('')+'</div>';}
-  else{let i=0;B.innerHTML='<div class="bl">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.map(n=>'<div class="brow"><i>'+String(++i).padStart(2,'0')+'</i><span>'+n+'</span><button disabled>尚未製作</button></div>').join('')+'</div>').join('')+'</div>';}
+  else{let i=0;const ar=inArena();B.innerHTML='<div class="arenabar"><span>戰鬥場：鏡中銀影的地圖（目前沒有 Boss，可自由練習）</span><button id="arenaBtn">'+(ar?'退出戰鬥場':'進入戰鬥場')+'</button></div><div class="bl">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.map(n=>'<div class="brow"><i>'+String(++i).padStart(2,'0')+'</i><span>'+n+'</span><button disabled>尚未製作</button></div>').join('')+'</div>').join('')+'</div>';document.getElementById('arenaBtn').onclick=()=>{inArena()?arenaExit():arenaEnter();};}
   try{langApply&&0;}catch(e){}}
+
+// =====================================================================
+//  丁達爾效應：陽光從太陽方向穿過樹冠、屋頂、山脊的縫隙形成光束
+//  做法：低解析度遮擋圖（物件剪影＋太陽光暈）→ 朝太陽方向做放射狀模糊 → 疊加回畫面
+// =====================================================================
+const GR={sc:.15,m:36,oc:null,lc:null,rc:null,out:null,last:-9};
+function sideGodRays(info,cx0,cy0,wts){const sun=SIDE.sun;if(!sun)return;const day=1-info.night,dk=duskK(info.t);
+  let I,col;if(sun.up){I=day*(.55+.75*(1-sun.elev))+dk*.4;col=lerpC([255,244,220],[255,170,90],Math.min(1,dk+(1-sun.elev)*.5));}else{I=info.night*.28;col=[150,170,230];}
+  if(I<.03)return;
+  const sc=GR.sc,m=GR.m,RW=Math.ceil(W*sc)+m*2,RH=Math.ceil(H*sc)+m*2;
+  if(!GR.oc){GR.oc=mk(RW,RH);GR.lc=mk(RW,RH);GR.rc=mk(RW,RH);GR.out=GR.rc.getContext('2d').createImageData(RW,RH);}
+  if(frameN-GR.last>=3){GR.last=frameN;const ox=GR.oc.getContext('2d');ox.setTransform(1,0,0,1,0,0);ox.globalCompositeOperation='source-over';ox.clearRect(0,0,RW,RH);ox.imageSmoothingEnabled=false;
+    ox.setTransform(sc,0,0,sc,m,m);const gs=SW.base-cy0,pars=[.1,.25,.45],offs=[-10,10,30];
+    for(let L=0;L<3;L++)for(const r of SW.regions){const set=SA.bg[r.id];if(!set||!set[L]||wts[r.id]<.5)continue;const img=set[L],off=-((cx0*pars[L])%img.width+img.width)%img.width,y0=Math.round(gs-img.height+offs[L]+(L===0?-30:0));for(let x=off-img.width;x<W+img.width;x+=img.width)ox.drawImage(img,x,y0);}
+    ox.translate(-cx0,-cy0);
+    for(const d of SA.deco){if(d.x<cx0-500||d.x>cx0+W+500)continue;const gy=groundY(d.x);
+      if(d.k==='tree'){const t=SA.trees[d.v];ox.drawImage(t,Math.round(d.x-t.width/2),gy-t.height+4);}else if(d.k==='house'){ox.drawImage(d.s.c,d.x-d.s.ox,gy-d.s.h+2);}else if(d.k==='tent')ox.drawImage(SA.tent,d.x-48,gy-62);}
+    ox.fillStyle='#000';ox.beginPath();ox.moveTo(cx0-500,cy0+H+400);for(let x=cx0-500;x<=cx0+W+500;x+=8)ox.lineTo(x,groundY(x));ox.lineTo(cx0+W+500,cy0+H+400);ox.fill();
+    ox.setTransform(1,0,0,1,0,0);ox.globalCompositeOperation='source-in';ox.fillStyle='#000';ox.fillRect(0,0,RW,RH);ox.globalCompositeOperation='source-over';
+    const lx=GR.lc.getContext('2d'),sx=sun.x*sc+m,sy=sun.y*sc+m;lx.globalCompositeOperation='source-over';lx.fillStyle='#000';lx.fillRect(0,0,RW,RH);
+    const gr=lx.createRadialGradient(sx,sy,0,sx,sy,sun.up?70:45);gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.35,'rgba(255,255,255,.55)');gr.addColorStop(1,'rgba(255,255,255,0)');lx.fillStyle=gr;lx.fillRect(0,0,RW,RH);
+    lx.drawImage(GR.oc,0,0);
+    const src=lx.getImageData(0,0,RW,RH).data,out=GR.out.data,N=20,dens=.92,dec=.94;
+    for(let y=0;y<RH;y++)for(let x=0;x<RW;x++){const dx=(sx-x)*dens/N,dy=(sy-y)*dens/N;let px=x,py=y,acc=0,w=1;
+      for(let i=0;i<N;i++){const ix=px|0,iy=py|0;if(ix>=0&&iy>=0&&ix<RW&&iy<RH)acc+=src[(iy*RW+ix)*4]*w;w*=dec;px+=dx;py+=dy;}
+      const v=Math.min(255,acc/N*1.9),o=(y*RW+x)*4;out[o]=col[0];out[o+1]=col[1];out[o+2]=col[2];out[o+3]=v;}
+    GR.rc.getContext('2d').putImageData(GR.out,0,0);}
+  g.save();g.globalCompositeOperation='lighter';g.globalAlpha=Math.min(1,I)*.55;g.imageSmoothingEnabled=true;g.drawImage(GR.rc,-m/sc,-m/sc,RW/sc,RH/sc);g.imageSmoothingEnabled=false;g.restore();}
+
+// =====================================================================
+//  戰鬥場：沿用鏡中銀影的地圖（沒有 Boss），從「召喚 Boss」選單進出
+// =====================================================================
+function makeArena(){const b=baseBoss({kind:'arena',name:'Arena',cn:'戰鬥場',song:'mirror',col:'#b8a0ff',hp:1e9,phaseAt:[]});b.idle=()=>{};b.phases=[[()=>false]];return b;}
+BOSSES.push(makeArena);const ARENA_I=BOSSES.length-1;
+{const _sf=startFight;startFight=function(i){_sf(i);if(boss&&boss.kind==='arena'){mirror=null;boss.dormant=true;boss.hidden=true;boss.x=-99999;introT=0;}};}
+function inArena(){return state==='fight'&&boss&&boss.kind==='arena';}
+function arenaEnter(){if(state!=='world')return;sideSave();saveGame();invClose();TOWN.inFight=true;startFight(ARENA_I);}
+function arenaExit(){invClose();TOWN.inFight=false;worldEnter(true);}
+addEventListener('keydown',e=>{if(e.key==='Tab'&&(inArena()||(state==='dead'&&boss&&boss.kind==='arena'))){e.preventDefault();invToggle();}});
 </script>
 <script>
 // =====================================================================
@@ -3501,7 +3541,7 @@ const CW={sel:null,wsel:null,newCls:'melee',wsize:'m',del:null};
   $('tClsBack').onclick=()=>{TM.panel='chars';tmUI();};
   for(const c of tc.querySelectorAll('button.card'))c.onclick=()=>{CW.newCls=c.dataset.c;tmUI();};
   for(const el of root.querySelectorAll('#cwName,#cwWName'))el.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')el.blur();});
-    $('cwMake').onclick=()=>{const name=($('cwName').value||'').trim()||'旅人';saveGame();const c={id:uid(),name,cls:CW.newCls,outfit:'adventurer',hair:'long',unlocked:{}};
+    $('cwMake').onclick=()=>{const name=($('cwName').value||'').trim()||'旅人';saveGame();const c={id:uid(),name,cls:CW.newCls,outfit:'adventurer',hair:'long',unlocked:{},weapons:(typeof CLS_WEAPONS!=='undefined'&&CLS_WEAPONS[CW.newCls]||['katana']).slice()};
     SAVE.chars.push(c);SAVE.cur=c.id;CW.sel=c.id;cwLink();saveGame();$('cwName').value='';TM.panel='chars';tmUI();};
   $('cwNew').onclick=()=>{CW.newCls='melee';TM.panel='cls';tmUI();setTimeout(()=>$('cwName').focus(),0);};
   $('cwBack').onclick=()=>{TM.panel=null;tmUI();};
