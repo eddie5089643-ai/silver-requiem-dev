@@ -180,10 +180,10 @@ function audioInit(){
   smpLoad();
 }
 // ---- 真實採樣配樂：music/t0~t5.mp3，切換時淡入淡出交疊 ----
-const SMP={buf:[],cur:null,want:-1,mute:false,FADE:1.6,FILES:['music/t0.mp3','music/t1.mp3','music/t2.mp3','music/t3.mp3','music/t4.mp3','music/t5.mp3','music/town.mp3']};
+const SMP={buf:[],cur:null,want:-1,mute:false,FADE:1.6,FILES:['music/t0.mp3','music/t1.mp3','music/t2.mp3','music/t3.mp3','music/t4.mp3','music/t5.mp3','music/town.mp3','music/l1.mp3']};
 function smpLoad(){if(SMP.loading)return;SMP.loading=true;
   SMP.FILES.forEach((f,i)=>{fetch(f).then(r=>{if(!r.ok)throw 0;return r.arrayBuffer();}).then(ab=>AC.decodeAudioData(ab)).then(b=>{SMP.buf[i]=b;}).catch(()=>{});});}
-function smpTrack(){if(state==='town')return 6;if(SMP.prev!==undefined&&state==='title')return SMP.prev;if(music.song==='title')return 0;const m=/^mirror_(\d)$/.exec(music.song);if(!m)return -1;const k=+m[1]+1;if(boss&&boss.dead&&SMP.cur)return SMP.cur.id;return (k===4&&boss&&boss.last)?5:k;}
+function smpTrack(){if(state==='town')return 6;if((state==='fight'||state==='dead')&&boss&&boss.track!==undefined)return boss.track;if(SMP.prev!==undefined&&state==='title')return SMP.prev;if(music.song==='title')return 0;const m=/^mirror_(\d)$/.exec(music.song);if(!m)return -1;const k=+m[1]+1;if(boss&&boss.dead&&SMP.cur)return SMP.cur.id;return (k===4&&boss&&boss.last)?5:k;}
 function smpFadeOut(c,T){if(!c)return;const g=c.g.gain;g.cancelScheduledValues(AC.currentTime);g.setValueAtTime(g.value,AC.currentTime);g.linearRampToValueAtTime(0,AC.currentTime+T);try{c.src.stop(AC.currentTime+T+.05);}catch(e){}}
 // 音樂欣賞：從指定時間點播放
 function smpPlayAt(id,off){const b=SMP.buf[id];if(!b)return false;const now=AC.currentTime;off=Math.max(0,Math.min(off||0,b.duration-.05));
@@ -364,7 +364,7 @@ for(const k in SONGS){const s=SONGS[k];s.seq=[];s.notes={};let base=0;
     base+=tok.length;}
   s.steps=base;}
 const music={on:true,song:'title',sec:-1,step:0,nextT:0,stepDur:.39,custom:[null,null,null],src:null,srcSec:-9,bus:null,want:null,lastVln:0};
-function setMusic(song,sec){const k=SONGS[song+'_'+sec]?song+'_'+sec:song;music.want={song:k,sec};}
+function setMusic(song,sec){if(!SONGS[song+'_'+sec]&&!SONGS[song]){song='title';sec=-1;}const k=SONGS[song+'_'+sec]?song+'_'+sec:song;music.want={song:k,sec};}
 function applyMusic(){
   const w=music.want;music.want=null;if(!w)return;
   const changed=w.song!==music.song||w.sec!==music.sec||!music.bus;
@@ -572,11 +572,11 @@ const UNLOCKS=[
   {id:'outfit.gothic',kind:'服裝',name:'銀刃禮裙',by:['empire1','mirror'],cond:'打敗帝國前期 Boss（demo：打敗鏡中銀影也可）'},
   {id:'hair.short',kind:'髮型',name:'短髮',by:['mirror'],cond:'打敗鏡中銀影'},
   {id:'move.dash2',kind:'招式',name:'二段閃避',by:['mirror'],cond:'打敗鏡中銀影',desc:'冷卻中可以再閃避一次'},
-  {id:'move.slide',kind:'招式',name:'滑步斬',by:['slime'],cond:'打敗史萊姆首領（開發中）'},
-  {id:'move.plunge',kind:'招式',name:'下劈',by:['goblin'],cond:'打敗哥布林首領（開發中）'},
+  {id:'move.slide',kind:'招式',name:'滑步斬',by:['slime'],cond:'打敗史萊姆首領',desc:'地面按 S＋攻擊'},
+  {id:'move.plunge',kind:'招式',name:'下劈',by:['goblin'],cond:'打敗哥布林首領',desc:'空中按 S＋攻擊'},
   {id:'hair.pony',kind:'髮型',name:'馬尾',by:['wolf'],cond:'打敗狼族人首領（開發中）'},
 ];
-const BOSS_KEY=['mirror'];
+const BOSS_KEY=['mirror','slime','goblin'];
 function progLocked(){try{return MP.on&&MP.lock;}catch(e){return false;}}
 function has(id){if(progLocked())return !!(MP.sessUnl&&MP.sessUnl[id]);const u=SAVE.unlocked||{};return !!(u[id]||(id==='outfit.gothic'&&u.gothic));}
 function grantBoss(key){const got=[];for(const u of UNLOCKS){if(!u.by.includes(key))continue;
@@ -903,6 +903,17 @@ function updPlayer(){
     if(q.life>0&&boss&&!boss.dead&&!boss.hidden){const hb=bossHurt(boss);if(segDist([q.px,q.py],[q.x,q.y],hb.a,hb.b)<hb.r+3){q.life=0;playerHitsBoss(q.dmg,q.x,q.y,Math.atan2(q.vy,q.vx)+Math.PI/2,!q.big);if(q.big){fx.push({type:'spark',x:q.x,y:q.y,a:rnd(0,TAU),life:14,max:14});part(q.x,q.y,24,'#ffe9a8',3,24,1);}}}}
   parrows=parrows.filter(q=>q.life>0);
   if(p.fireCD>0)p.fireCD--;if(p.recoil>0)p.recoil*=.6;
+  // 成長解鎖招式：滑步斬（地面 S＋攻擊）、下劈（空中 S＋攻擊）
+  {const dnK=keys['s']||keys['arrowdown'];
+    if(!st&&dnK&&mouse.lp&&p.atkCD<=0&&!p.sw&&!(p.slideT>0)&&!p.plunge&&p.parryT<=0){
+      if(p.onG&&has('move.slide')){p.slideT=18;p.slideHit=false;p.iframes=Math.max(p.iframes,14);p.atkCD=26;SFX.swing(false);SFX.dash();}
+      else if(!p.onG&&has('move.plunge')){p.plunge=true;p.plHit=false;p.vx*=.3;p.atkCD=30;SFX.swing(true);}}
+    if(p.slideT>0){p.slideT--;p.vx=p.face*(4+9*p.slideT/18);if(frameN%2===0)ghosts.push({snap:snapRig((p.rig||pRig).out,'#ffe9a8'),x:p.rx,y:p.ry,ox:pRig.ox,oy:pRig.oy,life:16,max:16});
+      if(!p.slideHit&&boss&&!boss.dead&&!boss.hidden&&!boss.dormant){const hb=bossHurt(boss),c0=pc();if(segDist([c0.x-12,c0.y+8],[c0.x+12,c0.y+8],hb.a,hb.b)<hb.r+10){p.slideHit=true;playerHitsBoss(42,c0.x+p.face*10,c0.y+6,0,false);}}}
+    if(p.plunge){p.vy=Math.max(p.vy,13);if(frameN%2===0)ghosts.push({snap:snapRig((p.rig||pRig).out,'#ffe9a8'),x:p.rx,y:p.ry,ox:pRig.ox,oy:pRig.oy,life:14,max:14});
+      const c0=pc();if(!p.plHit&&boss&&!boss.dead&&!boss.hidden&&!boss.dormant){const hb=bossHurt(boss);if(ptSeg(c0.x,c0.y+10,hb.a[0],hb.a[1],hb.b[0],hb.b[1])<hb.r+8){p.plHit=true;playerHitsBoss(60,c0.x,c0.y+10,0,false);p.vy=-6;p.plunge=false;}}
+      if(p.onG&&p.plunge){p.plunge=false;addShake(6);SFX.slam();ring(c0.x,p.y+p.h,'#ffe9a8',6,22);part(c0.x,p.y+p.h,22,'#ffe9a8',3.5,24,1);
+        if(!p.plHit&&boss&&!boss.dead&&!boss.hidden&&!boss.dormant&&Math.abs(boss.x-c0.x)<70&&Math.abs(boss.y-(p.y+p.h))<60){p.plHit=true;playerHitsBoss(48,boss.x,boss.y-20,0,false);}}}}
   if(!st&&p.weapon==='katana'&&mouse.l&&p.atkCD<=0&&p.parryT<=0&&!p.sw){
     const aim=Math.atan2(mw.y-c.y,mw.x-c.x);p.face=Math.cos(aim)>=0?1:-1;
     const aimL=Math.atan2(Math.sin(aim),Math.cos(aim)*p.face);
@@ -1067,7 +1078,7 @@ function glint(b,parry){fx.push({type:'glint',b,parry,life:24,max:24});if(parry)
 // =====================================================================
 //  Boss 共用
 // =====================================================================
-function bossHurt(b){if(b.kind==='mirror')return{a:[b.x,b.y-4],b:[b.x,b.y-30],r:9};if(b.kind==='knight')return{a:[b.x,b.y-25],b:[b.x,b.y-82],r:20};return{a:[b.x,b.y-10],b:[b.x,b.y-86],r:16};}
+function bossHurt(b){if(b.kind==='mirror')return{a:[b.x,b.y-4],b:[b.x,b.y-30],r:9};if(b.kind==='slime'){const s=b.sq||1;return{a:[b.x-20*s,b.y-24/s],b:[b.x+20*s,b.y-24/s],r:22/s+4};}if(b.kind==='goblin')return{a:[b.x,b.y-10],b:[b.x,b.y-58],r:15};if(b.kind==='knight')return{a:[b.x,b.y-25],b:[b.x,b.y-82],r:20};return{a:[b.x,b.y-10],b:[b.x,b.y-86],r:16};}
 function toW(b,la){return Math.atan2(Math.sin(la),Math.cos(la)*b.face);}
 function toLA(b,wa){return Math.atan2(Math.sin(wa),Math.cos(wa)*b.face);}
 function blink(b,x,y){part(b.x,b.y-45,26,'#000000',2.5,30,2);part(b.x,b.y-45,10,b.col,2,24,1);b.x=clamp(x,40,WW-40);b.y=clamp(y,60,GROUND);
@@ -1186,7 +1197,7 @@ function runBoss(b){
   if(b.last){runLastStand(b);return;}
   if(b.postT>0)b.postT--;else b.posture=Math.max(0,b.posture-.12);
   if(b.dead){b.deathT++;const T=b.deathT;b.crouch=Math.min(1,b.crouch+.02);b.float=0;b.fly=false;b.flying=false;b.sw=null;b.weapon='katana';b.sheathed=false;b.swLA=lerp(b.swLA,1.45,.05);
-    if(b.kind==='mirror'&&!b.onG)mPhys(b);
+    if(b.kind==='mirror'&&!b.onG)mPhys(b);else if(b.kind!=='mirror'){b.vx*=.9;bPhys(b);}
     const DE=420;b.x+=T<DE?rnd(-1,1)*T/DE*1.6:0;
     if(T<DE&&T%Math.max(1,4-Math.floor(T/140))===0){part(b.x+rnd(-8,8),b.y-rnd(4,34),3,'#ffffff',1.6,40,1);}
     if(T<DE&&T%Math.max(3,9-Math.floor(T/70))===0)fx.push({type:'beam',x:b.x,y:b.y-18,a:rnd(0,TAU),life:40,max:40,g:T/DE});
@@ -1199,6 +1210,7 @@ function runBoss(b){
     if(frameN%6===0)part(b.x+rnd(-10,10),b.y-90,1,'#ffe9a8',.6,30);return;}
   if(b.hold>0){b.hold--;b.lean=lerp(b.lean,-1,.3);b.x+=-b.face*1.6;return;}
   b.lean=lerp(b.lean,0,.1);
+  if(b.trans>0&&b.kind!=='mirror'){b.trans--;b.vx*=.8;bPhys(b);if(b.trans%14===0){ring(b.x,b.y-30,b.col,8,30);part(b.x,b.y-30,14,b.col,4,40,2);addShake(2);}if(b.trans===0)b.inv=0;return;}
   if(b.trans>0){b.trans--;b.tx=P.x;b.y=lerp(b.y,P.y-140,.04);b.x=lerp(b.x,P.x+180*Math.sign(b.x-P.x||1),.04);b.swLA=lerp(b.swLA,-1.5,.1);b.face=Math.sign(P.x-b.x)||1;
     if(b.trans%12===0){ring(b.x,b.y-50,b.col,8,30);part(b.x,b.y-50,14,b.col,4,40,2);}if(b.trans===0)b.inv=0;return;}
   const lim=b.phaseAt;
@@ -1485,7 +1497,155 @@ function makeMirror(){
   return b;
 }
 
-const BOSSES=[makeMirror];
+
+// ---------------- 主線一前段 Boss：史萊姆首領、哥布林首領 ----------------
+function makeForestMid(col,acc){
+  const c=mk(1800,460),x=c.getContext('2d');let s=7;const R=()=>{s=(s*9301+49297)%233280;return s/233280;};
+  for(let k=0;k<26;k++){const px=R()*1800,w=10+R()*16,h=160+R()*220;x.fillStyle=`rgb(${col})`;x.fillRect(px,460-h,w,h);
+    x.fillStyle=`rgb(${lerpC(col,acc,.12)})`;x.fillRect(px+2,460-h,2,h);
+    x.fillStyle=`rgb(${lerpC(col,[0,0,0],.15)})`;for(let j=0;j<6;j++){const r=26+R()*34;x.beginPath();x.arc(px+w/2+(R()-.5)*70,460-h+(R()-.5)*40,r,0,TAU);x.fill();}}
+  x.fillStyle=`rgb(${col})`;for(let i=0;i<1800;i+=6){const hh=8+Math.sin(i*.3)*4+R()*6;x.fillRect(i,460-hh,6,hh);}
+  return c;}
+THEMES.forest=[
+  {sky:makeSky([34,52,44],[150,170,120],20,'210,230,190'),far:makeFar([46,70,54],13),mid:makeForestMid([22,38,28],[150,200,140]),orb:'sun',fx:'mote',tint:null},
+  {sky:makeSky([20,12,30],[96,60,110],60,'180,140,220'),far:makeFar([36,26,48],13),mid:makeForestMid([16,12,22],[170,120,255]),orb:'moon',fx:'ember',tint:'rgba(60,0,80,.10)'}];
+
+function baseBoss(o){
+  const b=Object.assign({phase:0,ai:0,t:0,pause:90,gap:30,hold:0,posture:0,postT:0,broken:0,crouch:0,lean:0,float:0,swLA:1,bladeL:44,bladeW:34,dashing:false,dead:false,deathT:0,
+    inv:0,hurtF:0,anim:0,trans:0,rx:0,ry:0,handL:[14,-20],shL:[0,-30],laNow:0,ghostHp:0,ghostT:0,hidden:false,onG:true,runPh:0,sheathed:true,sw:null,parryT:0,fly:false,flying:false,
+    vx:0,vy:0,face:-1,x:WW/2+260,y:GROUND,weapon:'katana',gunLA:0,recoil:0},o);
+  b.mhp=b.hp;b.ghostHp=b.hp;b.hair=makeChain(2,b.x,b.y-40);b.groundY=()=>GROUND;return b;}
+function bPhys(b,g=.42){b.vy+=g;b.x+=b.vx;b.y+=b.vy;let landed=false;if(b.y>=GROUND){if(b.vy>2)landed=true;b.y=GROUND;b.vy=0;b.onG=true;}else b.onG=false;
+  if(b.x<70){b.x=70;b.vx=Math.abs(b.vx)*.5;}if(b.x>WW-70){b.x=WW-70;b.vx=-Math.abs(b.vx)*.5;}return landed;}
+const towardP=b=>{b.face=Math.sign(pc().x-b.x)||1;return b.face;};
+
+// ===== 史萊姆首領 =====
+function makeSlime(){
+  const b=baseBoss({kind:'slime',name:'Slime Lord',cn:'史萊姆首領',song:'forest',col:'#a070ff',track:7,hp:3000,phaseAt:[.5],sq:1});
+  b.idle=b=>{const f=towardP(b);if(b.onG&&b.anim%46===0){b.vy=-4.2;b.vx=f*2.2;}if(b.onG)b.vx*=.8;if(bPhys(b)){b.sq=1.35;addShake(1.5);}b.sq=lerp(b.sq,1,.15);};
+  const hop=(b,t)=>{if(t===0){b.hops=b.phase?3:2;b.hs=0;}
+    if(b.hs===0){const tx=clamp(pc().x+rnd(-40,40),90,WW-90),T=48;b.vy=-10;b.vx=(tx-b.x)/T;towardP(b);b.hs=1;b.sq=.7;SFX.whiff();}
+    const landed=bPhys(b);b.sq=lerp(b.sq,b.onG?1:.85,.2);
+    if(landed){b.sq=1.5;addShake(7);SFX.slam();part(b.x,GROUND-4,24,'#7cff6a',4,30,2);ring(b.x,GROUND-10,'#c8ffb8',8,22);
+      strike({kind:'circ',x:b.x,y:GROUND-20,r:52,life:6,dmg:38,b});
+      for(const d of [-1,1])shot(b.x+d*30,GROUND-6,d>0?0:Math.PI,3.4,{shape:'wave',r:8,dmg:26,life:150,col:'#8cff7a'});
+      if(b.phase)ringShot(b.x,GROUND-30,8,2.6,-Math.PI/2,{r:4,col:'#b890ff',dmg:20,life:200,grav:.04});
+      b.hops--;b.hs=b.hops>0?0:2;b.hw=t;}
+    return b.hs===2&&t>b.hw+24;};
+  const spit=(b,t)=>{b.vx*=.8;bPhys(b);if(t===0){towardP(b);b.sq=1.25;}
+    if(t===24||t===44||(b.phase&&t===64)){const c=pc(),a0=Math.atan2(c.y-60-(b.y-34),c.x-b.x),n=b.phase?7:5;b.sq=.8;SFX.gun();
+      for(let i=0;i<n;i++)shot(b.x,b.y-34,a0+(i-(n-1)/2)*.17-.25,5.2,{r:5,col:'#7cff6a',dmg:24,life:220,grav:.11});}
+    b.sq=lerp(b.sq,1,.12);return t>90;};
+  const rain=(b,t)=>{b.vx*=.85;bPhys(b);b.sq=1+.08*Math.sin(t/3);
+    if(t===0){SFX.roar();flash=.2;flashCol='160,255,140';}
+    if(t>16&&t<130&&t%(b.phase?6:9)===0){const x=clamp(pc().x+rnd(-260,260),40,WW-40);fx.push({type:'tline',x,y:VY0,x2:x,y2:GROUND,life:26,max:26,col:'#7cff6a'});
+      shot(x,VY0-30,Math.PI/2,2.2,{r:6,col:'#9cff8a',dmg:24,life:260,grav:.05,delay:26});}
+    return t>160;};
+  const slam=(b,t)=>{if(t===0){towardP(b);glint(b,true);b.sq=1.4;b.vx=0;}
+    if(t<30){bPhys(b);b.sq=lerp(b.sq,1.5,.1);return false;}
+    if(t===30){b.vx=b.face*10;b.vy=-4;b.sq=.7;b.dashing=true;SFX.dash();
+      strike({kind:'cap',b,r:34,life:22,parry:true,dmg:40,seg:()=>[b.x-18,b.y-24,b.x+18,b.y-24],onDeflect:()=>{b.vx=-b.face*7;b.vy=-5;b.dashing=false;}});}
+    bPhys(b);b.vx*=.95;b.sq=lerp(b.sq,1,.1);if(t>70){b.dashing=false;return true;}return false;};
+  const roll=(b,t)=>{if(t===0){b.rp=0;towardP(b);glint(b,true);}
+    if(t<24){bPhys(b);b.sq=lerp(b.sq,.8,.2);return false;}
+    if(b.rp===0){b.rp=1;b.vx=b.face*11;b.dashing=true;SFX.dash();
+      strike({kind:'cap',b,r:32,life:200,parry:true,dmg:36,seg:()=>[b.x-16,b.y-24,b.x+16,b.y-24],onDeflect:()=>{b.vx=-b.vx*.4;b.rp=3;b.dashing=false;}});}
+    if(b.rp===1||b.rp===2){b.vx=Math.sign(b.vx||b.face)*11;b.anim+=2;
+      if(b.x<=72||b.x>=WW-72){b.rp++;b.vx=-Math.sign(b.vx)*11;addShake(6);SFX.slam();ringShot(b.x,b.y-24,10,3,0,{r:4,col:'#b890ff',dmg:20,life:160});}}
+    bPhys(b);if(b.rp>=3){b.vx*=.9;b.dashing=false;for(const s of strikes)if(s.b===b)s.done=true;return Math.abs(b.vx)<.5;}return t>420;};
+  b.phases=[[hop,spit,slam,hop,rain],[hop,slam,roll,spit,rain,slam,hop]];
+  return b;}
+
+// ===== 哥布林首領 =====
+function makeGoblin(){
+  const b=baseBoss({kind:'goblin',name:'Goblin Chieftain',cn:'哥布林首領',song:'forest',col:'#ff8a4a',track:7,hp:3600,phaseAt:[.5],swLA:.9,bombs:[]});
+  const bombs=b=>{for(const q of b.bombs){q.vy+=.22;q.x+=q.vx;q.y+=q.vy;q.t++;if(q.y>=GROUND-4&&!q.boom){q.y=GROUND-4;q.vx=0;q.vy=0;q.boom=q.t+40;
+        aoe({x:q.x,y:GROUND-14,rOut:46,tele:40,act:10,dmg:42,col:'#a8502a'});}
+      if(q.boom&&q.t>=q.boom){q.done=true;ringShot(q.x,GROUND-12,6,3.2,-Math.PI/2+.3,{r:3,col:'#ffb070',dmg:18,life:120,grav:.09});part(q.x,q.y,30,'#ffb070',4,30,2);}}
+    b.bombs=b.bombs.filter(q=>!q.done);};
+  const walk=(b,tx,sp)=>{const d=tx-b.x;b.vx=lerp(b.vx,Math.sign(d)*Math.min(sp,Math.abs(d)*.05),.2);b.runPh+=Math.abs(b.vx)*.12;};
+  b.idle=b=>{const f=towardP(b);walk(b,pc().x-f*120,1.4);bPhys(b);bombs(b);b.swLA=lerp(b.swLA,.9,.15);};
+  const combo=(b,t)=>{bombs(b);bPhys(b);const f=b.face;
+    if(t===0){b.cs=0;b.ct=0;}
+    if(b.cs===0){towardP(b);walk(b,pc().x-b.face*58,3.2);if(Math.abs(pc().x-b.x)<74||t>110){b.cs=1;b.ct=t;b.vx=0;}return false;}
+    const k=t-b.ct,W_=[18,46,78],n=b.phase?3:3;
+    b.vx*=.7;
+    for(let i=0;i<n;i++){const w=W_[i];if(k===w-16){towardP(b);if(i<2)glint(b,true);else glint(b,false);b.swPre=-2.4;}
+      if(k>=w-16&&k<w){b.swLA=lerp(b.swLA,-2.5,.3);}
+      if(k===w){const last=i===2;strike({kind:'sec',b,R:62,a0:-2.4,a1:1.3,life:8,parry:!last,dmg:last?50:34});SFX.swing(last);b.vx=b.face*3;
+        if(last){aoe({x:b.x+b.face*54,y:GROUND-10,rOut:44,tele:2,act:8,dmg:40,col:'#ff8a4a'});shot(b.x+b.face*40,GROUND-6,b.face>0?0:Math.PI,4,{shape:'wave',r:8,dmg:26,life:120,col:'#ffb070'});}}
+      if(k>=w&&k<w+10)b.swLA=lerp(b.swLA,1.3,.45);}
+    return k>W_[n-1]+30;};
+  const throwB=(b,t)=>{bombs(b);b.vx*=.8;bPhys(b);if(t===0)towardP(b);
+    const ts=b.phase?[14,28,42,56]:[16,36,56];
+    if(ts.includes(t)){const c=pc(),dx=c.x-b.x+rnd(-60,60),T=48;b.bombs.push({x:b.x+b.face*10,y:b.y-50,vx:dx/T,vy:-.5*.22*T,t:0});b.swLA=-2;SFX.whiff();}
+    b.swLA=lerp(b.swLA,.9,.1);return t>90;};
+  const volley=(b,t)=>{bombs(b);b.vx*=.8;bPhys(b);
+    if(t===0){SFX.roar();b.swLA=-1.6;flash=.15;flashCol='255,180,120';}
+    if(t>30&&t<110&&t%(b.phase?4:6)===0){const side=Math.random()<.5?-1:1,x0=pc().x+side*rnd(160,320),x1=pc().x+rnd(-60,60),a=Math.atan2(GROUND-(VY0-10),x1-x0);
+      shot(x0,VY0-10,a,5.2,{r:3,col:'#e8d8a0',dmg:20,life:200});}
+    b.swLA=lerp(b.swLA,-1.6,.1);return t>130;};
+  const leap=(b,t)=>{bombs(b);if(t===0){towardP(b);b.lx=clamp(pc().x,90,WW-90);aoe({x:b.lx,y:GROUND-14,rOut:70,tele:58,act:10,dmg:55,col:'#a8502a'});b.vy=-12;b.vx=(b.lx-b.x)/56;b.ls=0;SFX.whiff();}
+    const landed=bPhys(b,.43);b.swLA=lerp(b.swLA,-2.6,.1);
+    if(landed&&!b.ls){b.ls=1;addShake(9);SFX.slam();part(b.x,GROUND-4,30,'#ffb070',4,34,2);for(const d of [-1,1])shot(b.x+d*24,GROUND-6,d>0?0:Math.PI,4.2,{shape:'wave',r:9,dmg:28,life:150,col:'#ffb070'});b.swLA=1.3;}
+    return b.ls&&t>80;};
+  b.phases=[[combo,throwB,combo,volley],[combo,leap,throwB,combo,volley,leap]];
+  return b;}
+
+// ===== 繪製 =====
+function drawSlime(b){
+  const dt=b.dead?Math.max(0,1-b.deathT/360):1;if(dt<=0)return;
+  const sq=b.sq||1,w=Math.round(38*sq*(b.dead?dt:1)),h=Math.round(32/sq*(b.dead?dt:1)),x=Math.round(b.x),y=Math.round(b.y);
+  const hit=b.hurtF>0,ph=b.phase>=1;
+  g.save();g.globalAlpha=b.dead?dt:1;
+  g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.ellipse(x,GROUND,w*1.05,5,0,0,TAU);g.fill();
+  const body=hit?'#e8ffe0':ph?'#5ab85a':'#4fae4a',dark=ph?'#2a6a34':'#2c6a2a',light=ph?'#9ee890':'#8ee07a';
+  g.fillStyle='#0e1a0e';g.beginPath();g.ellipse(x,y-h,w+2,h+2,0,Math.PI,0);g.lineTo(x+w+2,y);g.lineTo(x-w-2,y);g.fill();
+  g.fillStyle=body;g.beginPath();g.ellipse(x,y-h,w,h,0,Math.PI,0);g.lineTo(x+w,y-1);g.lineTo(x-w,y-1);g.fill();
+  g.fillStyle=dark;g.fillRect(x-w,y-6,w*2,5);
+  g.fillStyle=light;g.beginPath();g.ellipse(x-w*.35,y-h*1.45,w*.3,h*.22,-.3,0,TAU);g.fill();
+  g.fillStyle='rgba(255,255,255,.18)';g.fillRect(x-w*.5,y-h*1.6,4,3);
+  // 皇冠（首領）
+  const cy=y-h*2+2;g.fillStyle='#e8c040';g.fillRect(x-10,cy-6,20,6);for(const k of [-8,0,8]){g.fillRect(x+k-2,cy-11,4,5);}g.fillStyle='#ff5a6e';g.fillRect(x-1,cy-4,3,3);
+  // 眼睛：紫光（被侵蝕的跡象）
+  const ex=x+b.face*w*.25;b.tipX=x;b.tipY=y-h;g.fillStyle='#120818';g.fillRect(ex-10,y-h-6,7,8);g.fillRect(ex+3,y-h-6,7,8);
+  g.fillStyle=ph?'#e0b0ff':'#b080ff';g.fillRect(ex-8,y-h-4,3,4);g.fillRect(ex+5,y-h-4,3,4);
+  g.restore();
+  gg.globalAlpha=(ph?.8:.45)*(b.dead?dt:1)*(.8+.2*Math.sin(frameN/8));const sg=soft(ph?22:14,'rgba(170,110,255,.8)');gg.drawImage(sg,ex-(ph?22:14),y-h-2-(ph?22:14));gg.globalAlpha=1;
+  b.rx=x;b.ry=y;b.handL=[0,-h];
+}
+function drawGoblin(b){
+  const dt=b.dead?Math.max(0,1-b.deathT/360):1;if(dt<=0)return;
+  const x=Math.round(b.x),y=Math.round(b.y),f=b.face,hit=b.hurtF>0,ph=b.phase>=1;
+  const skin=hit?'#f0ffe0':ph?'#7a9a3a':'#6a8a3a',skinD='#45602a',leather='#5a3a24',leatherD='#3a2414',metal='#9a9aa6';
+  g.save();g.globalAlpha=dt;g.translate(x,y);g.scale(f,1);
+  g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.ellipse(0,0,22,4,0,0,TAU);g.fill();
+  const st=Math.sin(b.runPh)*4,bob=b.onG?Math.abs(Math.sin(b.runPh))*-1.5:0;
+  // 腿
+  g.fillStyle=skinD;g.fillRect(-9+st*.5,-16,7,16);g.fillStyle=skin;g.fillRect(2-st*.5,-16,7,16);g.fillStyle=leatherD;g.fillRect(-10+st*.5,-3,9,3);g.fillRect(1-st*.5,-3,9,3);
+  // 後手＋盾
+  g.fillStyle=skinD;g.fillRect(-14,-40+bob,6,16);g.fillStyle=leather;g.beginPath();g.arc(-15,-30+bob,11,0,TAU);g.fill();g.fillStyle=metal;g.beginPath();g.arc(-15,-30+bob,4,0,TAU);g.fill();
+  g.strokeStyle=leatherD;g.lineWidth=2;g.beginPath();g.arc(-15,-30+bob,11,0,TAU);g.stroke();
+  // 身體
+  g.fillStyle=skin;g.fillRect(-11,-44+bob,22,30);g.fillStyle=leather;g.fillRect(-12,-38+bob,24,20);g.fillStyle=leatherD;g.fillRect(-12,-22+bob,24,4);g.fillStyle='#c8a040';g.fillRect(-2,-22+bob,4,4);
+  g.fillStyle='#d8d0c0';for(const k of [-8,-3,2,7])g.fillRect(k,-38+bob,2,5); // 骨頭項鍊
+  // 頭
+  g.fillStyle=skin;g.fillRect(-9,-60+bob,18,16);g.beginPath();g.moveTo(9,-56+bob);g.lineTo(20,-62+bob);g.lineTo(9,-50+bob);g.fill();g.beginPath();g.moveTo(-9,-56+bob);g.lineTo(-18,-60+bob);g.lineTo(-9,-50+bob);g.fill();
+  g.fillStyle='#1a0a06';g.fillRect(1,-55+bob,7,3);g.fillStyle=ph?'#ff3a3a':'#ff7a3a';g.fillRect(4,-55+bob,3,3);
+  g.fillStyle='#e8e0c8';g.fillRect(2,-47+bob,2,3);g.fillRect(6,-47+bob,2,3);
+  // 羽毛頭飾（首領）
+  g.fillStyle='#c83a3a';g.fillRect(-7,-68+bob,4,9);g.fillStyle='#e8c040';g.fillRect(-2,-71+bob,4,12);g.fillStyle='#3a6ac8';g.fillRect(3,-67+bob,4,8);g.fillStyle=leatherD;g.fillRect(-9,-61+bob,18,3);
+  // 前手＋狼牙棒（依 swLA 揮動）
+  const shx=8,shy=-40+bob,la=b.swLA,hx=shx+Math.cos(la)*12,hy=shy+Math.sin(la)*12;
+  g.strokeStyle=skin;g.lineWidth=6;g.lineCap='round';g.beginPath();g.moveTo(shx,shy);g.lineTo(hx,hy);g.stroke();
+  const cx2=hx+Math.cos(la)*34,cy2=hy+Math.sin(la)*34;g.strokeStyle='#6a4428';g.lineWidth=5;g.beginPath();g.moveTo(hx,hy);g.lineTo(cx2,cy2);g.stroke();
+  g.fillStyle='#4a3020';g.beginPath();g.arc(cx2,cy2,8,0,TAU);g.fill();g.fillStyle=metal;for(let k=0;k<6;k++){const a=k/6*TAU+la;g.fillRect(cx2+Math.cos(a)*8-1.5,cy2+Math.sin(a)*8-1.5,3,3);}
+  g.restore();
+  b.rx=x;b.ry=y;b.handL=[hx*1,hy];b.tipX=x+cx2*f;b.tipY=y+cy2;b.shL=[shx,shy];
+  if(ph){gg.globalAlpha=.25+.1*Math.sin(frameN/9);const sg=soft(30,'rgba(255,120,60,.6)');gg.drawImage(sg,x-30,y-70);gg.globalAlpha=1;}
+}
+
+const BOSSES=[makeMirror,makeSlime,makeGoblin];
 
 // =====================================================================
 //  流程
@@ -1497,6 +1657,7 @@ function startFight(i){
   stats={time:0,parries:0,hits:0};state='fight';introT=0;endT=0;paused=false;bgL=0;
   P.x=WW/2-430;P.y=GROUND-P.h;P.hair=makeChain(9,P.x,P.y);applyHair(P);boss.dormant=true;boss.hidden=true;boss.x=WW/2+60;boss.y=GROUND;
   mirror={x:WW/2+60,t:0,broken:false,cracks:[...Array(9)].map((_,i)=>{let px=0,py=-34,a=i/9*TAU+rnd(-.3,.3);const pts=[[px,py]];for(let k=0;k<5;k++){a+=rnd(-.5,.5);px+=Math.cos(a)*rnd(3,7);py+=Math.sin(a)*rnd(3,7);pts.push([px,py]);}return pts;})};
+  if(boss.kind!=='mirror'){mirror=null;boss.dormant=false;boss.hidden=false;boss.x=WW/2+200;boss.y=GROUND;boss.pause=120;introT=200;}
   VZ=1;cam.x=clamp(P.x-W/2,0,WW-W);cam.y=clamp(P.y-H/2,0,WH-H);calcView();
   setMusic('title',-1);
 }
@@ -1761,7 +1922,7 @@ function drawTrail(){
   g.globalAlpha=1;gg.globalAlpha=1;
 }
 function drawBoss(){
-  const b=boss;if(!b||(b.hidden&&!b.dancers)||b.dormant)return;if(b.dead&&b.deathT>420)return;
+  const b=boss;if(!b||(b.hidden&&!b.dancers)||b.dormant)return;if(b.kind==='slime'){drawSlime(b);return;}if(b.kind==='goblin'){drawGoblin(b);return;}if(b.dead&&b.deathT>420)return;
   b.rx=Math.round(b.x);b.ry=Math.round(b.y);
   const hp2=b.hard&&b.phase>=2&&!b.dead,hp3=b.hard&&b.phase>=3&&!b.dead;const rig=hp3?mRig3:hp2?mRig2:mRig,aura=hp3?'#d8d8e4':'#8a70ff';
   if(frameN%3===0)parts.push({x:b.x+rnd(-8,8),y:b.y-rnd(0,36),vx:rnd(-.2,.2),vy:-rnd(.3,.9),life:40,max:40,col:b.phase>=1?aura:'#000000',size:b.phase>=1?1:2});
@@ -2084,7 +2245,7 @@ function drawHUD(){
     R(x0,y0,bw,7,'#1a0a0e');R(x0,y0,bw*b.ghostHp/b.mhp,7,'#f0e0e0');
     if(b.kind==='mirror')drawBossFireBar(b,x0,y0,bw*b.hp/b.mhp);
     else{const col=b.inv>0?'#555':b.col;cx.shadowColor=col;cx.shadowBlur=8*S;R(x0,y0,bw*b.hp/b.mhp,7,col);cx.shadowBlur=0;
-    R(x0,y0,bw*b.hp/b.mhp,1,'rgba(255,255,255,.4)');}
+    R(x0,y0,bw*b.hp/b.mhp,1,'rgba(255,255,255,.4)');if(b.cn)T(tr(b.cn),W/2,y0-10,7,'#e8e8f0');}
     for(const t of b.phaseAt){R(x0+bw*t-1,y0-3,2,13,'#d8d8e0');}
     // 圖示：鏡中銀影頭像（一二階段／三階段／四階段），底下有隨階段變強的閃爍光暈；四階段眼睛冒白火
     if(b.kind==='mirror'&&BICON[0].complete){drawBossIcon(b,x0-22,y0+2);}
@@ -2139,7 +2300,7 @@ function handleInput(){
   if(state==='title')titleInput();
   else if(state==='fight'){if(paused){const vr=volRectP(),m_=window.__m;if(m_.l&&(m_.lp?volHit(vr,m_.x,m_.y):window.__volDrag)){window.__volDrag=true;setVol((m_.x-vr.x)/vr.w);}if(!m_.l)window.__volDrag=false;}if((pressed['escape']||pressed['p'])&&!MP.on)paused=!paused;if(MP.on)paused=false;if(paused&&pressed['t']){paused=false;toTitle();}}
   else if(state==='dead'){if(endT>40&&(pressed['r']||pressed['enter']))startFight(bossSel);if(pressed['escape'])(TOWN.inFight?townEnter:toTitle)();}
-  else if(state==='win'){if(endT===1){SAVE.beaten[bossSel+'_'+diffI]=true;winMat=GAMEDIFF===1?3:0;if(winMat)SAVE.mat=(SAVE.mat||0)+winMat;saveGame();winUnl=grantBoss(BOSS_KEY[bossSel]||'mirror');}
+  else if(state==='win'){if(endT===1){SAVE.beaten[bossSel+'_'+diffI]=true;winMat=GAMEDIFF===1?3:0;if(winMat)SAVE.mat=(SAVE.mat||0)+winMat;saveGame();winUnl=grantBoss(BOSS_KEY[bossSel]||'mirror');{const q=SAVE.quests=SAVE.quests||{},k=BOSS_KEY[bossSel];if(k==='slime'&&(q.m1||0)<2)q.m1=2;if(k==='goblin'&&(q.m1||0)<3)q.m1=3;saveGame();}}
     if(endT>60&&pressed['r'])startFight(bossSel);if(endT>60&&(pressed['enter']||pressed['escape']))(TOWN.inFight?townEnter:toTitle)();}
 }
 let last=performance.now(),acc=0;
@@ -2494,7 +2655,7 @@ const DICT={'單人模式':'Singleplayer','多人模式':'Multiplayer','設定':
   '無敵模式':'God mode','自動瞄準':'Aimbot','生命已補滿':'Health restored','跳到第 ':'Jumped to phase ',' 階段':'','用法：/phase 1~4':'Usage: /phase 1~4','未知指令：':'Unknown command: ',
   'Boss 血條已清空，進入最終招':'Boss HP emptied — final stand begins','Boss 血條已清空':'Boss HP emptied','跳過最終招':'Final stand skipped','目前沒有可清空的 Boss':'No boss to clear','怒氣已回滿':'Rage refilled','請先進入戰鬥':'Enter a battle first',
   '補血藥水無冷卻':'No potion cooldown','手機介面':'Mobile UI','多人模式中只有房主能用 /phase、/kill':'Only the host can use /phase and /kill in multiplayer','多人模式沒有怒氣':'No rage in multiplayer',
-  '選擇 Boss':'Choose a Boss','建立角色':'Create Character','選擇職業 · 單人模式：白髮女角':'Choose a class · Singleplayer: white-haired heroine','太刀・冷兵器':'Katana · blades','格擋：振刀':'Guard: blade parry','槍・弓':'Gun · bow','格擋：舉武器擋':'Guard: weapon block','開發中':'In development','近戰傷害':'Melee dmg','遠程傷害':'Ranged dmg','基本攻擊':'Basic attack','解鎖':'Unlocked','本場':'this session','髮型：':'Hair: ','白色長髮':'Long white hair','短髮':'Short hair','打敗鏡中銀影':'Defeat The Silver Reflection','成長':'Progress','服裝':'Outfit','髮型':'Hair','招式':'Move','二段閃避':'Double dodge','滑步斬':'Slide slash','下劈':'Plunge','馬尾':'Ponytail','進度鎖定':'Progress lock','開（舊角色的解鎖會被鎖住）':'On (existing unlocks are locked)','關（可以帶著已解鎖的內容）':'Off (bring your unlocks)','服裝：':'Outfit: ','冒險者服裝':'Adventurer garb','銀刃禮裙':'Silver Blade gown','打敗帝國前期 Boss 解鎖':'Unlocked by defeating an early Empire boss','切換武器（太刀／手槍／弓）':'Switch weapon (katana / gun / bow)','職業：':'Class: ','更換':'Change','近戰':'Melee','遠程':'Ranged','魔法':'Magic','輔助':'Support','盜賊':'Rogue','困難獎勵：材料':'Hard reward: materials','（共':'(total','戰鬥中不能切換難度':'Cannot change difficulty during battle','難度：':'Difficulty: ','只有房主能切換難度':'Only the host can change difficulty','音樂欣賞':'Music Room','▶ 播放':'▶ Play','❚❚ 暫停':'❚❚ Pause','■ 停止':'■ Stop','載入中…':'Loading…','主選單':'Main Menu','第一階段':'Phase I','第二階段':'Phase II','第三階段':'Phase III','第四階段':'Phase IV','最終謝幕':'Final Curtain','觀戰中 · 左鍵切換':'Spectating · Click to switch','左鍵：觀戰其他玩家':'Click: spectate a teammate','難度':'Mode','普通':'Normal','困難':'Hard','極難':'Extreme','開發中':'In development','彈幕密集度 ×2、Boss 最大血量 +50%':'2× bullet density, boss max HP +50%','標準難度':'Standard difficulty','操作說明':'Controls','左右移動（連按兩下：閃避）':'Move (double-tap: dodge)','閃避':'Dodge','空白鍵 / W':'Space / W','跳躍、飛行':'Jump / fly','滑鼠左鍵':'Left mouse','攻擊（刀）／射擊（槍）':'Slash (katana) / shoot (gun)','滑鼠右鍵 / F':'Right mouse / F','振刀（黃光攻擊可彈反，紅光不行）':'Parry (yellow flashes only, not red)','切換刀／手槍':'Switch katana / gun','切換刀／手槍／弓':'Switch katana / gun / bow','換彈':'Reload','補血藥水':'Healing potion','聊天／指令（T 或 /，↑ 叫回上一句，輸入 /help）':'Chat / commands (T or /, ↑ recalls last, /help)','暫停':'Pause','鏡中銀影':'Silver Reflection','敬請期待':'Coming soon','？？？':'???','— 撐過 30 秒 —':'— Survive 30 seconds —','復活倒數 ':'Respawn in ','全員陣亡':'PARTY WIPED','清空Boss血條':'empty boss HP','回滿怒氣':'full rage','藥水無冷卻':'no potion CD',
+  '選擇 Boss':'Choose a Boss','建立角色':'Create Character','選擇職業 · 單人模式：白髮女角':'Choose a class · Singleplayer: white-haired heroine','太刀・冷兵器':'Katana · blades','格擋：振刀':'Guard: blade parry','槍・弓':'Gun · bow','格擋：舉武器擋':'Guard: weapon block','開發中':'In development','近戰傷害':'Melee dmg','遠程傷害':'Ranged dmg','基本攻擊':'Basic attack','史萊姆首領':'Slime Lord','哥布林首領':'Goblin Chieftain','解鎖':'Unlocked','本場':'this session','髮型：':'Hair: ','白色長髮':'Long white hair','短髮':'Short hair','打敗鏡中銀影':'Defeat The Silver Reflection','成長':'Progress','服裝':'Outfit','髮型':'Hair','招式':'Move','二段閃避':'Double dodge','滑步斬':'Slide slash','下劈':'Plunge','馬尾':'Ponytail','進度鎖定':'Progress lock','開（舊角色的解鎖會被鎖住）':'On (existing unlocks are locked)','關（可以帶著已解鎖的內容）':'Off (bring your unlocks)','服裝：':'Outfit: ','冒險者服裝':'Adventurer garb','銀刃禮裙':'Silver Blade gown','打敗帝國前期 Boss 解鎖':'Unlocked by defeating an early Empire boss','切換武器（太刀／手槍／弓）':'Switch weapon (katana / gun / bow)','職業：':'Class: ','更換':'Change','近戰':'Melee','遠程':'Ranged','魔法':'Magic','輔助':'Support','盜賊':'Rogue','困難獎勵：材料':'Hard reward: materials','（共':'(total','戰鬥中不能切換難度':'Cannot change difficulty during battle','難度：':'Difficulty: ','只有房主能切換難度':'Only the host can change difficulty','音樂欣賞':'Music Room','▶ 播放':'▶ Play','❚❚ 暫停':'❚❚ Pause','■ 停止':'■ Stop','載入中…':'Loading…','主選單':'Main Menu','第一階段':'Phase I','第二階段':'Phase II','第三階段':'Phase III','第四階段':'Phase IV','最終謝幕':'Final Curtain','觀戰中 · 左鍵切換':'Spectating · Click to switch','左鍵：觀戰其他玩家':'Click: spectate a teammate','難度':'Mode','普通':'Normal','困難':'Hard','極難':'Extreme','開發中':'In development','彈幕密集度 ×2、Boss 最大血量 +50%':'2× bullet density, boss max HP +50%','標準難度':'Standard difficulty','操作說明':'Controls','左右移動（連按兩下：閃避）':'Move (double-tap: dodge)','閃避':'Dodge','空白鍵 / W':'Space / W','跳躍、飛行':'Jump / fly','滑鼠左鍵':'Left mouse','攻擊（刀）／射擊（槍）':'Slash (katana) / shoot (gun)','滑鼠右鍵 / F':'Right mouse / F','振刀（黃光攻擊可彈反，紅光不行）':'Parry (yellow flashes only, not red)','切換刀／手槍':'Switch katana / gun','切換刀／手槍／弓':'Switch katana / gun / bow','換彈':'Reload','補血藥水':'Healing potion','聊天／指令（T 或 /，↑ 叫回上一句，輸入 /help）':'Chat / commands (T or /, ↑ recalls last, /help)','暫停':'Pause','鏡中銀影':'Silver Reflection','敬請期待':'Coming soon','？？？':'???','— 撐過 30 秒 —':'— Survive 30 seconds —','復活倒數 ':'Respawn in ','全員陣亡':'PARTY WIPED','清空Boss血條':'empty boss HP','回滿怒氣':'full rage','藥水無冷卻':'no potion CD',
   '無敵':'god','補滿':'heal','跳階段':'phase','手機介面':'mobile UI','：開':': ON','：關':': OFF','此瀏覽器不支援全屏：iPhone 請用「分享 → 加入主畫面」再開啟':'Fullscreen not supported here. On iPhone use Share → Add to Home Screen'};
 const DICTK=Object.keys(DICT).sort((a,b)=>b.length-a.length);
 function tr(t){t=String(t);if(LANG!=='en')return t;for(const k of DICTK)if(t.includes(k))t=t.split(k).join(DICT[k]);return t;}
@@ -2516,7 +2677,7 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
   for(const ob of to.querySelectorAll('button[data-o]'))ob.onclick=()=>{if(!outfitOK(ob.dataset.o))return;SAVE.outfit=ob.dataset.o;saveGame();tmUI();};}
   const th=document.getElementById('tHair');if(th){const ch=curHair(),sh=has('hair.short');th.innerHTML='<span>'+tr('髮型：')+'</span><button data-h="long" class="'+(ch==='long'?'sel':'')+'">'+tr('白色長髮')+'</button><button data-h="short" class="'+(ch==='short'?'sel':'')+'" '+(sh?'':'disabled')+'>'+(sh?'':'🔒 ')+tr('短髮')+(sh?'':'<br><small>'+tr('打敗鏡中銀影')+'</small>')+'</button>';
     for(const hb of th.querySelectorAll('button[data-h]'))hb.onclick=()=>{SAVE.hair=hb.dataset.h;saveGame();tmUI();};}
-  const tg=document.getElementById('tGrow');if(tg){const n=UNLOCKS.filter(u=>has(u.id)).length;tg.innerHTML='<div class="hd">'+tr('成長')+'　'+n+' / '+UNLOCKS.length+'</div>'+UNLOCKS.map(u=>has(u.id)?'<div class="ok">✦ 【'+tr(u.kind)+'】<b>'+tr(u.name)+'</b></div>':'<div>🔒 【'+tr(u.kind)+'】'+tr(u.name)+' — '+tr(u.cond)+'</div>').join('');}const cl=document.getElementById('tClsLine');if(cl){cl.innerHTML=tr('職業：')+tr(CLS_NAME[PCLS])+(TM.mode==='single'?'<button id="tClsChg">'+tr('更換')+'</button>':'');const cb=document.getElementById('tClsChg');if(cb)cb.onclick=()=>{TM.panel='cls';tmUI();};}}
+  const tg=document.getElementById('tGrow');if(tg){const n=UNLOCKS.filter(u=>has(u.id)).length;tg.innerHTML='<div class="hd">'+tr('成長')+'　'+n+' / '+UNLOCKS.length+'</div>'+UNLOCKS.map(u=>has(u.id)?'<div class="ok">✦ 【'+tr(u.kind)+'】<b>'+tr(u.name)+'</b>'+(u.desc?' · '+tr(u.desc):'')+'</div>':'<div>🔒 【'+tr(u.kind)+'】'+tr(u.name)+' — '+tr(u.cond)+'</div>').join('');}const cl=document.getElementById('tClsLine');if(cl){cl.innerHTML=tr('職業：')+tr(CLS_NAME[PCLS])+(TM.mode==='single'?'<button id="tClsChg">'+tr('更換')+'</button>':'');const cb=document.getElementById('tClsChg');if(cb)cb.onclick=()=>{TM.panel='cls';tmUI();};}}
   const mpp=document.getElementById('mpPanel');if(mpp&&TM.panel==='boss')mpp.style.display='none';
   const mo=document.getElementById('mpOpen');if(mo)mo.style.display='none';
   const mv=document.getElementById('tMv'),sv=document.getElementById('tSv');if(mv&&document.activeElement!==mv)mv.value=Math.round((music.on?musicVol:0)*100);if(sv&&document.activeElement!==sv)sv.value=Math.round(sfxVol*100);
@@ -2767,7 +2928,9 @@ const NPCS=[
    talk(){const q=SAVE.quests||{};
      if(!q.m1)return {lines:['旅人，你醒了。這裡是主鎮，你倒在鎮外的路邊，是巡邏的守衛把你帶回來的。','最近西邊森林裡的史萊姆越來越多，連獵人都不敢進去了。','有人說，牠們的首領眼裡帶著不祥的紫光……','你看起來不是普通人。能替我們去森林看看嗎？'],
        done(){SAVE.quests=Object.assign(SAVE.quests||{},{m1:1});saveGame();TOWN.toast='接下主線一：森林的異變';TOWN.toastT=200;}};
-     return {lines:['史萊姆首領就在西邊的森林深處。','（demo：森林與史萊姆首領還在開發中）','路上小心。森林那邊……最近連龍的吼聲都聽得到。']};}},
+     if(q.m1===1)return {lines:['史萊姆首領就在西邊的森林。走到鎮子最西邊的告示牌，按 E 出發。','路上小心。森林那邊……最近連龍的吼聲都聽得到。']};
+     if(q.m1===2)return {lines:['你真的打倒牠了！……可是牠眼裡那道紫光，不像是天生的。','森林深處的哥布林最近也變得兇暴，牠們的首領開始襲擊商隊。','告示牌旁邊那條路通往森林深處。拜託了。']};
+     return {lines:['哥布林首領倒下前一直喊著「龍在呼喚」……','狼族人也開始騷動了。這一切，恐怕都和龍族有關。','（demo：主線一的後續還在開發中）']};}},
   {id:'merchant',x:640,name:'旅行商人',male:true,pal:{hairL:'#c89a6a',hairM:'#9a6c44',hairD:'#5e3e24',blk:'#5a2e2e',blk2:'#3e1e1e',blk3:'#7a4444',lace:'#e0c890',laceS:'#a89058'},face:1,
    talk(){SAVE.rumor=Object.assign(SAVE.rumor||{},{m2:1});saveGame();
      return {lines:['要買點什麼嗎？……開玩笑的，貨都被帝國的人徵走了。','東邊的帝國最近到處徵兵，還派人去挖什麼古代遺跡。','聽說挖出來的東西會自己發光……我是不想再往東走了。']};}},
@@ -2776,8 +2939,9 @@ const NPCS=[
      return {lines:['就是我把你從路邊撿回來的。你倒下的時候，手裡還緊緊握著武器。','……你聽過湖底的歌聲嗎？晚上有時候會從北邊的湖傳過來。','老一輩說那是「無光裔」在唱歌。別在守門的人面前提這個詞，他們很忌諱。']};}},
 ];
 const SIGNS=[
-  {x:120,text:'← 西方森林（主線一，開發中）',act:null},
-  {x:1880,text:'試煉之鏡（demo 測試）：挑戰鏡中銀影',act(){TOWN.inFight=true;startFight(0);}},
+  {x:200,text(){return (SAVE.quests||{}).m1?'西方森林：挑戰史萊姆首領':'西方森林（先和村長談談）';},act(){if(!(SAVE.quests||{}).m1)return false;TOWN.inFight=true;TOWN.backX=230;startFight(1);}},
+  {x:90,text(){return ((SAVE.quests||{}).m1||0)>=2?'森林深處：挑戰哥布林首領':'森林深處（先打倒史萊姆首領）';},act(){if(((SAVE.quests||{}).m1||0)<2)return false;TOWN.inFight=true;TOWN.backX=120;startFight(2);}},
+  {x:1880,text:'試煉之鏡（demo 測試）：挑戰鏡中銀影',act(){TOWN.inFight=true;TOWN.backX=1840;startFight(0);}},
 ];
 function townRng(seed){let s=seed;return()=>{s=(s*9301+49297)%233280;return s/233280;};}
 function townBuild(){
@@ -2821,7 +2985,7 @@ function townBuild(){
 function townNpcRig(n){return TOWN.npcRigs[n.id]||(TOWN.npcRigs[n.id]=makeRig(180,90,130,Object.assign({},PC,n.pal),'#050508'));}
 function townEnter(){
   if(!TOWN.fg)townBuild();
-  const p=newPlayer();p.outfit=curOutfit();p.pal=OUTFITS[p.outfit].pal;const back=TOWN.inFight;TOWN.inFight=false;p.x=back?1840:960;p.y=TOWN.G-p.h;p.face=back?-1:1;p.sheathed=true;p.onG=true;
+  const p=newPlayer();p.outfit=curOutfit();p.pal=OUTFITS[p.outfit].pal;const back=TOWN.inFight;TOWN.inFight=false;p.x=back?(TOWN.backX||1840):960;p.y=TOWN.G-p.h;p.face=back?(p.x>1000?-1:1):1;p.sheathed=true;p.onG=true;
   p.hair=makeChain(9,p.x,p.y);applyHair(p);TOWN.p=p;TOWN.dlg=null;
   for(const n of NPCS){if(!n.o){n.o={face:n.face,vx:0,vy:0,onG:true,runPh:0,hair:makeChain(9,n.x,TOWN.G-36),rx:n.x,ry:TOWN.G,sheathed:true,sw:null,parryT:0,weapon:'katana',gunLA:0,recoil:0,handL:[0,0],laNow:0,bladeW:0,bladeL:44,sheatheT:0,male:n.male};}}
   state='town';boss=null;paused=false;TOWN.lock=20;setMusic('title',-1);try{tmUI();}catch(e){}
@@ -2830,7 +2994,7 @@ function townEnter(){
 function townNear(){const p=TOWN.p,px=p.x+p.w/2;let best=null,bd=46;
   for(const n of NPCS){const d=Math.abs(n.x-px);if(d<bd){bd=d;best={kind:'npc',n};}}
   for(const s of SIGNS){const d=Math.abs(s.x-px);if(d<bd){bd=d;best={kind:'sign',s};}}
-  if(px>1900&&!best)best={kind:'sign',s:SIGNS[1]};return best;}
+  if(px>1900&&!best)best={kind:'sign',s:SIGNS[SIGNS.length-1]};return best;}
 function townUpdate(){
   const p=TOWN.p;frameN++;
   if(TOWN.lock>0)TOWN.lock--;
@@ -2844,7 +3008,7 @@ function townUpdate(){
     const ax=(R_?1:0)-(L_?1:0);p.vx+=ax*.55;p.vx*=.82;if(ax)p.face=ax;
     if((pressed['w']||pressed[' ']||pressed['arrowup'])&&p.onG){p.vy=-7.2;p.onG=false;}
     if(ok){const t=townNear();if(t&&t.kind==='npc'){const r=t.n.talk();TOWN.dlg={name:t.n.name,lines:r.lines,done:r.done,i:0,t:0};t.n.o.face=Math.sign(p.x-t.n.x)||1;}
-      else if(t&&t.kind==='sign'){if(t.s.act){t.s.act();return;}TOWN.toast=t.s.text;TOWN.toastT=160;}}
+      else if(t&&t.kind==='sign'){const tx=typeof t.s.text==='function'?t.s.text():t.s.text;if(t.s.act&&t.s.act()!==false)return;TOWN.toast=tx;TOWN.toastT=160;}}
   }
   p.vy+=.38;p.x+=p.vx;p.y+=p.vy;if(p.y+p.h>=TOWN.G){p.y=TOWN.G-p.h;p.vy=0;p.onG=true;}
   p.x=clamp(p.x,10,TOWN.W-20);if(p.onG&&Math.abs(p.vx)>.5)p.runPh+=Math.abs(p.vx)*.13;
@@ -2877,7 +3041,7 @@ function drawTownUI(){
   // 任務欄
   const q=SAVE.quests||{},r=SAVE.rumor||{};let qy=34;
   T('任務',14,qy,7,'#b8a0ff','left');qy+=12;
-  if(q.m1){T('主線一：森林的異變 — 討伐史萊姆首領',14,qy,6.5,'#e8e8f0','left');qy+=11;}
+  if(q.m1){T('主線一：森林的異變 — '+(q.m1===1?'討伐史萊姆首領':q.m1===2?'討伐哥布林首領':'後續開發中'),14,qy,6.5,'#e8e8f0','left');qy+=11;}
   else{T('和村長談談',14,qy,6.5,'#9a98b0','left');qy+=11;}
   if(r.m2){T('傳聞：東邊的帝國在挖古代遺跡',14,qy,6,'#8a88a0','left');qy+=10;}
   if(r.m3){T('傳聞：北邊的湖底傳來歌聲',14,qy,6,'#8a88a0','left');qy+=10;}
