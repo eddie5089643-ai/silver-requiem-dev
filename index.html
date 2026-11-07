@@ -2961,7 +2961,7 @@ const TOWN={W:2000,G:392,p:null,cam:0,dlg:null,from:false,bg:null,fg:null,npcRig
 const NPCS=[
   {id:'elder',x:1000,name:'村長',male:true,pal:{hairL:'#e8e8e8',hairM:'#b8b8bc',hairD:'#7c7c84',blk:'#3c4a5e',blk2:'#2a3444',blk3:'#56667e',lace:'#d8d0bc',laceS:'#a49c88'},face:-1,
    talk(){const q=SAVE.quests||{};
-     if(!q.m1)return {lines:['旅人，你醒了。這裡是主鎮，你倒在鎮外的路邊，是巡邏的守衛把你帶回來的。','最近西邊森林裡的史萊姆越來越多，連獵人都不敢進去了。','有人說，牠們的首領眼裡帶著不祥的紫光……','你看起來不是普通人。能替我們去森林看看嗎？'],
+     if(!q.m1)return {lines:['旅人，歡迎來到主鎮。看你一身風塵，是從西邊森林那頭一路走過來的吧？','最近西邊森林裡的史萊姆越來越多，連獵人都不敢進去了。','有人說，牠們的首領眼裡帶著不祥的紫光……','你看起來不是普通人。能替我們去森林看看嗎？'],
        done(){SAVE.quests=Object.assign(SAVE.quests||{},{m1:1});saveGame();TOWN.toast='接下主線一：森林的異變';TOWN.toastT=200;}};
      if(q.m1===1)return {lines:['史萊姆首領就在西邊的森林。出了西城門一直往西走，森林深處那片林間空地就是牠的巢穴，一靠近牠就會出現。','路上小心。森林那邊……最近連龍的吼聲都聽得到。']};
      if(q.m1===2)return {lines:['你真的打倒牠了！……可是牠眼裡那道紫光，不像是天生的。','森林深處的哥布林最近也變得兇暴，牠們的首領開始襲擊商隊。','牠們的祭壇在森林更西邊的深處，靠近世界的邊緣。拜託了。']};
@@ -2971,7 +2971,7 @@ const NPCS=[
      return {lines:['要買點什麼嗎？……開玩笑的，貨都被帝國的人徵走了。','東邊的帝國最近到處徵兵，還派人去挖什麼古代遺跡。','聽說挖出來的東西會自己發光……我是不想再往東走了。']};}},
   {id:'guard',x:1420,name:'老守衛',male:true,pal:{hairL:'#9a9aa0',hairM:'#6c6c74',hairD:'#44444c',blk:'#44484c',blk2:'#2e3236',blk3:'#666c72',lace:'#b8b8c0',laceS:'#80808a'},face:-1,
    talk(){SAVE.rumor=Object.assign(SAVE.rumor||{},{m3:1});saveGame();
-     return {lines:['就是我把你從路邊撿回來的。你倒下的時候，手裡還緊緊握著武器。','……你聽過湖底的歌聲嗎？晚上有時候會從北邊的湖傳過來。','老一輩說那是「無光裔」在唱歌。別在守門的人面前提這個詞，他們很忌諱。']};}},
+     return {lines:['又來了個背著武器的旅人。在森林裡紮營過夜？那一帶最近可不太平靜。','……你聽過湖底的歌聲嗎？晚上有時候會從北邊的湖傳過來。','老一輩說那是「無光裔」在唱歌。別在守門的人面前提這個詞，他們很忌諱。']};}},
 ];
 const SIGNS=[
   {x:200,text(){return (SAVE.quests||{}).m1?'西方森林：挑戰史萊姆首領':'西方森林（先和村長談談）';},act(){if(!(SAVE.quests||{}).m1)return false;TOWN.inFight=true;TOWN.backX=230;startFight(1);}},
@@ -3243,10 +3243,10 @@ function worldEnter(back){const meta=curWorldMeta();if(!meta){toTitle();return;}
   p.x=sx;p.y=groundY(sx)-p.h;p.vx=p.vy=0;p.face=1;p.sheathed=true;p.onG=true;p.hair=makeChain(9,p.x,p.y);applyHair(p);WP=p;
   SIDE.time=typeof meta.time==='number'?meta.time:.74;SIDE.dlg=null;SIDE.lock=20;SIDE.regName='';sideNpcs();
   WCAM.x=p.x-W/2;WCAM.y=groundY(p.x)-372;state='world';boss=null;paused=false;setMusic('title',-1);try{tmUI();}catch(e){}
-  if(!(SAVE.quests||{}).m1){SIDE.toast='在營地醒來。往東走就是主鎮，去找村長談談';SIDE.toastT=420;}}
+  if(!(SAVE.quests||{}).m1){SIDE.toast='旅途中在林間營地過了一夜。往東走就是主鎮，去找村長談談';SIDE.toastT=420;}}
 townEnter=function(){worldEnter(true);};
 function sideSave(){const m=curWorldMeta();if(m&&WP){m.px=Math.round(WP.x);m.time=SIDE.time;}}
-{const _tt=toTitle;toTitle=function(){if(state==='world'){sideSave();saveGame();invClose();}_tt();};}
+{const _tt=toTitle;toTitle=function(){if(state==='world'){sideSave();saveGame();invClose();}wPause(false);_tt();};}
 // ---------- NPC（主鎮） ----------
 function sideNpcs(){const hs=SA.deco.filter(d=>d.k==='house');const homes=[hs[2],hs[4],hs[6]].map(h=>h?h.x+h.s.w/2:TOWN_X0+400);
   SIDE.npcs=NPCS.map((n,i)=>{const home=homes[i%homes.length];return {n,home,x:home,vx:0,st:'idle',tm:60+i*50,t:i*97,o:{face:1,vx:0,vy:0,onG:true,runPh:0,hair:makeChain(9,home,groundY(home)-36),rx:home,ry:groundY(home),sheathed:true,sw:null,parryT:0,weapon:'katana',gunLA:0,recoil:0,handL:[0,0],laNow:0,bladeW:0,bladeL:44,sheatheT:0,male:n.male,noWeapon:true}};});}
@@ -3278,12 +3278,11 @@ function sideNear(){const px=WP.x+WP.w/2;let best=null,bd=40;
 const DAY_FRAMES=12*60*60;
 function dayInfo(){const t=SIDE.time,sunUp=t>.2&&t<.8,night=Math.max(0,Math.min(1,1-Math.min(1,Math.max(0,(Math.sin((t-.2)/.6*Math.PI)+.15)*2.2))));return {t,sunUp,night};}
 function duskK(t){return Math.max(0,1-Math.abs(t-.24)*9)+Math.max(0,1-Math.abs(t-.76)*9);}
-function worldUpdate(){frameN++;const p=WP,info=dayInfo();SIDE.time=(SIDE.time+1/DAY_FRAMES)%1;if(SIDE.lock>0)SIDE.lock--;
+function worldUpdate(){if(pressed['escape']&&!INV.open){wPause(!SIDE.paused);return;}if(SIDE.paused)return;frameN++;const p=WP,info=dayInfo();SIDE.time=(SIDE.time+1/DAY_FRAMES)%1;if(SIDE.lock>0)SIDE.lock--;
   if(pressed['tab']){invToggle();}
   const invOpen=INV.open;
   const ok=!invOpen&&(pressed['e']||pressed['enter'])&&!(SIDE.lock>0);
   if(!invOpen){
-    if(pressed['escape']){if(SIDE.dlg)SIDE.dlg=null;else{toTitle();return;}}
     sideDlgStep(ok);
     const L_=keys['a']||keys['arrowleft'],R_=keys['d']||keys['arrowright'],ax=(R_?1:0)-(L_?1:0);
     if(p.dashT>0){p.dashT--;p.vx=p.dashDir*8.5;}else{p.vx+=ax*.6;p.vx*=.8;if(Math.abs(p.vx)<.05)p.vx=0;}
@@ -3394,7 +3393,7 @@ function drawWorldUI(){const p=WP,t=INV.open?null:sideNear();
     rows.forEach((r,k)=>{const y=y0-(rows.length-1-k)*11;for(const [ox,oy] of [[-.7,0],[.7,0],[0,-.7],[0,.7]])T(r,x+ox,y+oy,7,'#0a0a10');T(r,x,y,7,'#ffffff');});if(d.t>=d.lines[d.i].length&&frameN%40<26)T('▼',x,y0+9,5.5,'#ffe9a8');}
   if(SIDE.regT>0){const a=Math.min(1,SIDE.regT/40,(200-SIDE.regT)/30);cx.globalAlpha=a;T('— '+SIDE.regName+' —',W/2,70,12,'#ffffff');cx.globalAlpha=1;}
   if(SIDE.toastT>0){cx.globalAlpha=Math.min(1,SIDE.toastT/30);T(SIDE.toast,W/2,96,7,'#e8e8f0');cx.globalAlpha=1;}
-  if(!INV.open)T('A/D 移動（連按兩下衝刺）　W 跳　左鍵 攻擊　'+(ownedW().length>1?'1/'+ownedW().length+' 武器　':'')+'E 互動　Tab 背包　Esc 存檔離開',W/2,H-6,5.5,'rgba(220,220,235,.5)');}
+  if(!INV.open)T('A/D 移動（連按兩下衝刺）　W 跳　左鍵 攻擊　'+(ownedW().length>1?'1/'+ownedW().length+' 武器　':'')+'E 互動　Tab 背包　Esc 暫停',W/2,H-6,5.5,'rgba(220,220,235,.5)');}
 
 // =====================================================================
 //  Tab：背包／技能樹／召喚 Boss（介面風格同主選單：黑底白蕾絲框）
@@ -3447,29 +3446,32 @@ function invUI(){const r=document.getElementById('invRoot');if(!r)return;r.style
 //  丁達爾效應：陽光從太陽方向穿過樹冠、屋頂、山脊的縫隙形成光束
 //  做法：低解析度遮擋圖（物件剪影＋太陽光暈）→ 朝太陽方向做放射狀模糊 → 疊加回畫面
 // =====================================================================
-const GR={sc:.15,m:36,oc:null,lc:null,rc:null,out:null,last:-9};
+const GR={sc:.2,m:40,oc:null,lc:null,rc:null,tc:null,f:0};
 function sideGodRays(info,cx0,cy0,wts){const sun=SIDE.sun;if(!sun)return;const day=1-info.night,dk=duskK(info.t);
   let I,col;if(sun.up){I=day*(.55+.75*(1-sun.elev))+dk*.4;col=lerpC([255,244,220],[255,170,90],Math.min(1,dk+(1-sun.elev)*.5));}else{I=info.night*.28;col=[150,170,230];}
   if(I<.03)return;
   const sc=GR.sc,m=GR.m,RW=Math.ceil(W*sc)+m*2,RH=Math.ceil(H*sc)+m*2;
-  if(!GR.oc){GR.oc=mk(RW,RH);GR.lc=mk(RW,RH);GR.rc=mk(RW,RH);GR.out=GR.rc.getContext('2d').createImageData(RW,RH);}
-  if(frameN-GR.last>=3){GR.last=frameN;const ox=GR.oc.getContext('2d');ox.setTransform(1,0,0,1,0,0);ox.globalCompositeOperation='source-over';ox.clearRect(0,0,RW,RH);ox.imageSmoothingEnabled=false;
-    ox.setTransform(sc,0,0,sc,m,m);const gs=SW.base-cy0,pars=[.1,.25,.45],offs=[-10,10,30];
-    for(let L=0;L<3;L++)for(const r of SW.regions){const set=SA.bg[r.id];if(!set||!set[L]||wts[r.id]<.5)continue;const img=set[L],off=-((cx0*pars[L])%img.width+img.width)%img.width,y0=Math.round(gs-img.height+offs[L]+(L===0?-30:0));for(let x=off-img.width;x<W+img.width;x+=img.width)ox.drawImage(img,x,y0);}
-    ox.translate(-cx0,-cy0);
-    for(const d of SA.deco){if(d.x<cx0-500||d.x>cx0+W+500)continue;const gy=groundY(d.x);
-      if(d.k==='tree'){const t=SA.trees[d.v];ox.drawImage(t,Math.round(d.x-t.width/2),gy-t.height+4);}else if(d.k==='house'){ox.drawImage(d.s.c,d.x-d.s.ox,gy-d.s.h+2);}else if(d.k==='tent')ox.drawImage(SA.tent,d.x-48,gy-62);}
-    ox.fillStyle='#000';ox.beginPath();ox.moveTo(cx0-500,cy0+H+400);for(let x=cx0-500;x<=cx0+W+500;x+=8)ox.lineTo(x,groundY(x));ox.lineTo(cx0+W+500,cy0+H+400);ox.fill();
-    ox.setTransform(1,0,0,1,0,0);ox.globalCompositeOperation='source-in';ox.fillStyle='#000';ox.fillRect(0,0,RW,RH);ox.globalCompositeOperation='source-over';
-    const lx=GR.lc.getContext('2d'),sx=sun.x*sc+m,sy=sun.y*sc+m;lx.globalCompositeOperation='source-over';lx.fillStyle='#000';lx.fillRect(0,0,RW,RH);
-    const gr=lx.createRadialGradient(sx,sy,0,sx,sy,sun.up?70:45);gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.35,'rgba(255,255,255,.55)');gr.addColorStop(1,'rgba(255,255,255,0)');lx.fillStyle=gr;lx.fillRect(0,0,RW,RH);
-    lx.drawImage(GR.oc,0,0);
-    const src=lx.getImageData(0,0,RW,RH).data,out=GR.out.data,N=20,dens=.92,dec=.94;
-    for(let y=0;y<RH;y++)for(let x=0;x<RW;x++){const dx=(sx-x)*dens/N,dy=(sy-y)*dens/N;let px=x,py=y,acc=0,w=1;
-      for(let i=0;i<N;i++){const ix=px|0,iy=py|0;if(ix>=0&&iy>=0&&ix<RW&&iy<RH)acc+=src[(iy*RW+ix)*4]*w;w*=dec;px+=dx;py+=dy;}
-      const v=Math.min(255,acc/N*1.9),o=(y*RW+x)*4;out[o]=col[0];out[o+1]=col[1];out[o+2]=col[2];out[o+3]=v;}
-    GR.rc.getContext('2d').putImageData(GR.out,0,0);}
-  g.save();g.globalCompositeOperation='lighter';g.globalAlpha=Math.min(1,I)*.55;g.imageSmoothingEnabled=true;g.drawImage(GR.rc,-m/sc,-m/sc,RW/sc,RH/sc);g.imageSmoothingEnabled=false;g.restore();}
+  if(!GR.oc){GR.oc=mk(RW,RH);GR.lc=mk(RW,RH);GR.rc=mk(RW,RH);GR.tc=mk(RW,RH);}
+  const key=Math.round(cx0/3)+'|'+Math.round(cy0/3)+'|'+Math.round(sun.x/2)+'|'+Math.round(sun.y/2)+'|'+(wts.forest>.5)+(wts.town>.5);
+  if(key!==GR.key&&(GR.f++)%2===0){GR.key=key;
+  // 1. 遮擋物剪影（背景層、樹、房子、帳篷、地面）
+  const ox=GR.oc.getContext('2d');ox.setTransform(1,0,0,1,0,0);ox.globalCompositeOperation='source-over';ox.clearRect(0,0,RW,RH);
+  ox.setTransform(sc,0,0,sc,m,m);const gs=SW.base-cy0,pars=[.1,.25,.45],offs=[-10,10,30];
+  for(let L=0;L<3;L++)for(const r of SW.regions){const set=SA.bg[r.id];if(!set||!set[L]||wts[r.id]<.5)continue;const img=set[L],off=-((cx0*pars[L])%img.width+img.width)%img.width,y0=Math.round(gs-img.height+offs[L]+(L===0?-30:0));for(let x=off-img.width;x<W+img.width;x+=img.width)ox.drawImage(img,x,y0);}
+  ox.translate(-cx0,-cy0);
+  for(const d of SA.deco){if(d.x<cx0-400||d.x>cx0+W+400)continue;const gy=groundY(d.x);
+    if(d.k==='tree'){const t=SA.trees[d.v];ox.drawImage(t,Math.round(d.x-t.width/2),gy-t.height+4);}else if(d.k==='house'){ox.drawImage(d.s.c,d.x-d.s.ox,gy-d.s.h+2);}else if(d.k==='tent')ox.drawImage(SA.tent,d.x-48,gy-62);}
+  ox.fillStyle='#000';ox.beginPath();ox.moveTo(cx0-400,cy0+H+400);for(let x=cx0-400;x<=cx0+W+400;x+=10)ox.lineTo(x,groundY(x));ox.lineTo(cx0+W+400,cy0+H+400);ox.fill();
+  ox.setTransform(1,0,0,1,0,0);ox.globalCompositeOperation='source-in';ox.fillStyle='#000';ox.fillRect(0,0,RW,RH);ox.globalCompositeOperation='source-over';
+  // 2. 光源（太陽周圍的天空光）＋剪影 → 只剩縫隙透出的光
+  const lx=GR.lc.getContext('2d'),sx=sun.x*sc+m,sy=sun.y*sc+m;lx.globalCompositeOperation='source-over';lx.clearRect(0,0,RW,RH);
+  const gr=lx.createRadialGradient(sx,sy,0,sx,sy,sun.up?70:45);gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.35,'rgba(255,255,255,.5)');gr.addColorStop(1,'rgba(255,255,255,0)');lx.fillStyle=gr;lx.fillRect(0,0,RW,RH);
+  lx.globalCompositeOperation='destination-out';lx.drawImage(GR.oc,0,0);lx.globalCompositeOperation='source-over';
+  // 3. 朝太陽放射狀模糊（用 GPU 疊加放大的副本，不逐點計算，避免卡頓）
+  const rx=GR.rc.getContext('2d');rx.setTransform(1,0,0,1,0,0);rx.globalCompositeOperation='source-over';rx.clearRect(0,0,RW,RH);rx.globalCompositeOperation='lighter';
+  const N=10;for(let i=0;i<N;i++){const k=1+i*.12;rx.globalAlpha=.2*Math.pow(.88,i);rx.setTransform(k,0,0,k,sx*(1-k),sy*(1-k));rx.drawImage(GR.lc,0,0);}
+  rx.setTransform(1,0,0,1,0,0);rx.globalAlpha=1;rx.globalCompositeOperation='source-in';rx.fillStyle=`rgb(${col})`;rx.fillRect(0,0,RW,RH);rx.globalCompositeOperation='source-over';}
+  g.save();g.globalCompositeOperation='lighter';g.globalAlpha=Math.min(1,I)*.75;g.imageSmoothingEnabled=true;g.drawImage(GR.rc,-m/sc,-m/sc,RW/sc,RH/sc);g.imageSmoothingEnabled=false;g.restore();}
 
 // =====================================================================
 //  戰鬥場：沿用鏡中銀影的地圖（沒有 Boss），從「召喚 Boss」選單進出
@@ -3481,6 +3483,22 @@ function inArena(){return state==='fight'&&boss&&boss.kind==='arena';}
 function arenaEnter(){if(state!=='world')return;sideSave();saveGame();invClose();TOWN.inFight=true;startFight(ARENA_I);}
 function arenaExit(){invClose();TOWN.inFight=false;worldEnter(true);}
 addEventListener('keydown',e=>{if(e.key==='Tab'&&(inArena()||(state==='dead'&&boss&&boss.kind==='arena'))){e.preventDefault();invToggle();}});
+
+// =====================================================================
+//  主世界暫停（Esc）：介面風格同主選單
+// =====================================================================
+(function(){const st=document.createElement('style');st.textContent=`
+#wPause{position:fixed;inset:0;display:none;z-index:35;background:rgba(4,4,10,.55);font-family:"Noto Serif TC","Songti TC","PMingLiU",serif;color:#e8e8f2}
+#wPause .panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(340px,90vw);padding:20px 22px 18px;display:flex;flex-direction:column;gap:10px}
+#wPause h2{margin:0 0 6px;font:900 20px "Noto Serif TC",serif;letter-spacing:.4em;text-align:center;color:#fff;text-shadow:0 0 10px rgba(200,190,255,.5)}
+#wPause button{padding:9px;border:1px solid #e6e6ee;background:none;color:#fff;font:15px "Noto Serif TC",serif;letter-spacing:.3em;cursor:pointer;border-radius:3px}
+#wPause button:hover{background:#2a2840}#wPause .r{display:flex;align-items:center;gap:10px;font-size:13px;color:#cfcfdc}#wPause .r input{flex:1;accent-color:#e8e8f0}`;
+  document.head.appendChild(st);const r=document.createElement('div');r.id='wPause';r.innerHTML='<div class="panel lace"><h2>暫停</h2><button id="wpGo">繼續遊戲</button><button id="wpBag">背包（Tab）</button><div class="r"><span>音樂</span><input id="wpMv" type="range" min="0" max="100"></div><div class="r"><span>音效</span><input id="wpSv" type="range" min="0" max="100"></div><button id="wpQuit">存檔並回到標題</button></div>';
+  document.body.appendChild(r);const $=id=>document.getElementById(id);
+  $('wpGo').onclick=()=>wPause(false);$('wpBag').onclick=()=>{wPause(false);invOpen();};$('wpQuit').onclick=()=>{wPause(false);toTitle();};
+  $('wpMv').oninput=e=>setVol(e.target.value/100);$('wpSv').oninput=e=>setSfxVol(e.target.value/100);})();
+function wPause(on){SIDE.paused=!!on;const r=document.getElementById('wPause');if(!r)return;r.style.display=on?'block':'none';
+  if(on){try{document.getElementById('wpMv').value=Math.round((music.on?musicVol:0)*100);document.getElementById('wpSv').value=Math.round(sfxVol*100);}catch(e){}for(const k in keys)keys[k]=false;mouse.l=false;}}
 </script>
 <script>
 // =====================================================================
