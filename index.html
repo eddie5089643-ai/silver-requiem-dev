@@ -132,7 +132,7 @@ function runCmd(line){
   else if(c==='rage'){if(P&&state==='fight'){if(P.rageOn)P.rage=100;else rageStart();chatSay('怒氣已回滿');}else chatSay('請先進入戰鬥');}
   else if(c==='potion'){noPotCD=!noPotCD;if(noPotCD&&P)P.potCD=0;chatSay('補血藥水無冷卻：'+(noPotCD?'開':'關'));}
   else if(c==='mobile'){MOB=!MOB;resize();chatSay('手機介面：'+(MOB?'開':'關'));}
-  else if(c==='unlock'){SAVE.unlocked=Object.assign(SAVE.unlocked||{},{gothic:true});saveGame();chatSay('（測試）已解鎖服裝：銀刃禮裙');try{tmUI();}catch(e){}}
+  else if(c==='unlock'){grantBoss('mirror');chatSay('（測試）已取得鏡中銀影的全部解鎖');try{tmUI();}catch(e){}}
   else if(c==='help'){chatSay('/god 無敵  /aimbot 自動瞄準  /heal 補滿');chatSay('/kill 清空Boss血條  /rage 回滿怒氣  /potion 藥水無冷卻');chatSay('/phase 1~4 跳階段  /mobile 手機介面');}
   else chatSay('未知指令：/'+(cmd||''));
 }
@@ -567,7 +567,25 @@ const PC={hairL:'#f2f2f8',hairM:'#c4c4d2',hairD:'#80809a',skin:'#f9ece9',skinS:'
 // 服裝：開局是一般冒險者服裝；銀刃禮裙要打敗帝國前期 Boss 才解鎖
 const PC_ADV=Object.assign({},PC,{blk:'#4a3626',blk2:'#33251a',blk3:'#6e5238',lace:'#9c8a64',laceS:'#6c5c40'});
 const OUTFITS={adventurer:{name:'冒險者服裝',pal:PC_ADV},gothic:{name:'銀刃禮裙',pal:PC,lock:'打敗帝國前期 Boss 解鎖'}};
-function outfitOK(k){return k==='adventurer'||!!(SAVE.unlocked&&SAVE.unlocked[k]);}
+// 成長：打敗 Boss 解鎖招式／服裝／髮型（多人進度鎖定時只用本場解鎖）
+const UNLOCKS=[
+  {id:'outfit.gothic',kind:'服裝',name:'銀刃禮裙',by:['empire1','mirror'],cond:'打敗帝國前期 Boss（demo：打敗鏡中銀影也可）'},
+  {id:'hair.short',kind:'髮型',name:'短髮',by:['mirror'],cond:'打敗鏡中銀影'},
+  {id:'move.dash2',kind:'招式',name:'二段閃避',by:['mirror'],cond:'打敗鏡中銀影',desc:'冷卻中可以再閃避一次'},
+  {id:'move.slide',kind:'招式',name:'滑步斬',by:['slime'],cond:'打敗史萊姆首領（開發中）'},
+  {id:'move.plunge',kind:'招式',name:'下劈',by:['goblin'],cond:'打敗哥布林首領（開發中）'},
+  {id:'hair.pony',kind:'髮型',name:'馬尾',by:['wolf'],cond:'打敗狼族人首領（開發中）'},
+];
+const BOSS_KEY=['mirror'];
+function progLocked(){try{return MP.on&&MP.lock;}catch(e){return false;}}
+function has(id){if(progLocked())return !!(MP.sessUnl&&MP.sessUnl[id]);const u=SAVE.unlocked||{};return !!(u[id]||(id==='outfit.gothic'&&u.gothic));}
+function grantBoss(key){const got=[];for(const u of UNLOCKS){if(!u.by.includes(key))continue;
+    if(progLocked()){MP.sessUnl=MP.sessUnl||{};if(!MP.sessUnl[u.id]){MP.sessUnl[u.id]=1;got.push(u);}}
+    else if(!has(u.id)){SAVE.unlocked=Object.assign(SAVE.unlocked||{},{[u.id]:1});got.push(u);}}
+  saveGame();return got;}
+function outfitOK(k){return k==='adventurer'||has('outfit.'+k);}
+function curHair(){return SAVE.hair==='short'&&has('hair.short')?'short':'long';}
+function applyHair(p){if(curHair()==='short')p.hair=makeChain(4,p.x||0,p.y||0);}
 function curOutfit(){const k=SAVE.outfit||'adventurer';return outfitOK(k)?k:'adventurer';}
 const pRig=makeRig(180,90,130,PC,'#050508'),MPRIGS={},OUTFIT_RIGS={};
 function outfitRig(k){return OUTFIT_RIGS[k]||(OUTFIT_RIGS[k]=makeRig(180,90,130,OUTFITS[k].pal,'#050508'));}
@@ -832,7 +850,7 @@ function updPlayer(){
   let dr=0;
   if(!st){for(const [k,d] of [['a',-1],['arrowleft',-1],['d',1],['arrowright',1]])if(pressed[k]){if(p.lastTapDir===d&&frameN-p.lastTapT<15)dr=d;p.lastTapDir=d;p.lastTapT=frameN;}
     if(pressed['shift'])dr=((Rk?1:0)-(Lk?1:0))||p.face;}
-  if(dr&&p.dashCD<=0){p.dashT=13;p.dashI=24;p.dashCD=48;p.dashDir=dr;p.lastTapT=-99;SFX.dash();addShake(1.5);}
+  if(dr&&(p.dashCD<=0||(p.d2&&p.dashT<=0&&has('move.dash2')))){p.d2=p.dashCD<=0;p.dashT=13;p.dashI=24;p.dashCD=48;p.dashDir=dr;p.lastTapT=-99;SFX.dash();addShake(1.5);}
   if(p.dashT>0){p.dashT--;p.vx=p.dashDir*9;p.vy*=.4;if(frameN%2===0)ghosts.push({snap:snapRig((p.rig||pRig).out,'#cfe0ff'),x:p.rx,y:p.ry,ox:pRig.ox,oy:pRig.oy,life:20,max:20});
     parts.push({x:c.x-p.dashDir*6,y:c.y+rnd(-12,12),vx:-p.dashDir*.6,vy:0,life:16,max:16,col:'#ffffff',size:1});}
   else{const tg=((Rk?1:0)-(Lk?1:0))*3;p.vx+=(tg-p.vx)*(p.onG?.32:.16);}
@@ -1473,11 +1491,11 @@ const BOSSES=[makeMirror];
 //  流程
 // =====================================================================
 function startFight(i){
-  D=DIFFS[diffI];bossSel=i;P=newPlayer();if(!MP.on){P.outfit=curOutfit();P.pal=OUTFITS[P.outfit].pal;}boss=BOSSES[i]();curCol=boss.col;if(GAMEDIFF===1){boss.mhp=boss.hp=Math.round(boss.mhp*1.5);boss.ghostHp=boss.hp;}
+  D=DIFFS[diffI];bossSel=i;P=newPlayer();if(!MP.on){P.outfit=curOutfit();P.pal=OUTFITS[P.outfit].pal;}applyHair(P);boss=BOSSES[i]();curCol=boss.col;if(GAMEDIFF===1){boss.mhp=boss.hp=Math.round(boss.mhp*1.5);boss.ghostHp=boss.hp;}
   bullets=[];lasers=[];strikes=[];aoes=[];parts=[];fx=[];pops=[];ghosts=[];trail=[];weather=[];pqi=[];pshots=[];crescents=[];parrows=[];scars=[];camK=0;execT=0;
   for(const c of snapPool())c.used=false;
   stats={time:0,parries:0,hits:0};state='fight';introT=0;endT=0;paused=false;bgL=0;
-  P.x=WW/2-430;P.y=GROUND-P.h;P.hair=makeChain(9,P.x,P.y);boss.dormant=true;boss.hidden=true;boss.x=WW/2+60;boss.y=GROUND;
+  P.x=WW/2-430;P.y=GROUND-P.h;P.hair=makeChain(9,P.x,P.y);applyHair(P);boss.dormant=true;boss.hidden=true;boss.x=WW/2+60;boss.y=GROUND;
   mirror={x:WW/2+60,t:0,broken:false,cracks:[...Array(9)].map((_,i)=>{let px=0,py=-34,a=i/9*TAU+rnd(-.3,.3);const pts=[[px,py]];for(let k=0;k<5;k++){a+=rnd(-.5,.5);px+=Math.cos(a)*rnd(3,7);py+=Math.sin(a)*rnd(3,7);pts.push([px,py]);}return pts;})};
   VZ=1;cam.x=clamp(P.x-W/2,0,WW-W);cam.y=clamp(P.y-H/2,0,WH-H);calcView();
   setMusic('title',-1);
@@ -2051,7 +2069,7 @@ function drawHUD(){
     spr2(heartSpr('#2a2a32','#1c1c22'),x,y);if(v>0){cx.save();cx.beginPath();cx.rect(x*S,y*S,9*S*v,8*S);cx.clip();spr2(heartSpr(p.hp/p.mhp<.3?'#ff4060':'#f2f2f6',p.hp/p.mhp<.3?'#a01428':'#b4b4c4'),x,y);cx.restore();}}
   // 飛行、衝刺、振刀、藥水
   const bx0=W-120;if(!MP.on){R(bx0+12,21,100,5,'rgba(0,0,0,.6)');{const rc=p.rageOn?(frameN%10<5?'#ffffff':'#bcd4ff'):'#9fb8ff';cx.shadowColor=rc;cx.shadowBlur=(p.rageOn?10:4)*S;R(bx0+12,21,100*p.rage/100,5,rc);cx.shadowBlur=0;}R(bx0+12,21,100,1,'rgba(255,255,255,.25)');icon('rage',bx0+5,23.5,p.rageOn?'#ffffff':'#9fb8ff');}
-  icon('dash',W-96,36,p.dashCD<=0?'#ffffff':'#444');icon('parry',W-76,36,p.parryCD<=0?'#ffe9a8':'#444');
+  icon('dash',W-96,36,p.dashCD<=0?'#ffffff':(p.d2&&has('move.dash2')?'#ffe9a8':'#444'));icon('parry',W-76,36,p.parryCD<=0?'#ffe9a8':'#444');
   icon('potion',W-56,36,p.potCD<=0?'#8cffb0':'#2c4a36');if(p.potCD>0)R(W-60,31,8,10*p.potCD/2700,'rgba(0,0,0,.6)');T('3',W-49,41,5.5,'#9a9aa8');
   // 武器欄（1 切換）
   for(const [i,wn] of [[0,'katana'],[1,'gun'],[2,'bow']]){const x=W-80+i*18,y=48,on=p.weapon===wn;R(x,y,16,16,on?'rgba(255,255,255,.16)':'rgba(0,0,0,.5)');R(x,y,16,1,on?'#ffffff':'#444');R(x,y+15,16,1,on?'#ffffff':'#444');
@@ -2106,14 +2124,14 @@ function drawHUD(){
     cx.save();cx.translate(W/2*S,130*S);cx.scale(S*3,S*3);cx.fillStyle='#fff';cx.shadowColor='#fff';cx.shadowBlur=12;cx.beginPath();cx.arc(0,0,8,0,TAU);cx.fill();cx.fillStyle='#000';cx.beginPath();cx.arc(3.5,-2.5,7,0,TAU);cx.fill();cx.restore();cx.shadowBlur=0;
     const s=Math.floor(stats.time/60);T(Math.floor(s/60)+':'+String(s%60).padStart(2,'0'),W/2,168,12,'#ffffff');
     icon('parry',W/2-30,188,'#ffe9a8');T(String(stats.parries),W/2-16,188,9,'#ffe9a8','left');spr2(heartSpr('#ff4060','#a01428'),W/2+10,184);T(String(stats.hits),W/2+24,188,9,'#ff6070','left');
-    keycap(W/2-30,204,24,'↵');icon('home',W/2+2,210);keycap(W/2+12,204,12,'R');icon('retry',W/2+32,210);if(winMat)T(tr('困難獎勵：材料')+' +'+winMat+'（'+tr('共')+' '+(SAVE.mat||0)+'）',W/2,236,8,'#b8a0ff');cx.globalAlpha=1;}
+    keycap(W/2-30,204,24,'↵');icon('home',W/2+2,210);keycap(W/2+12,204,12,'R');icon('retry',W/2+32,210);if(winMat)T(tr('困難獎勵：材料')+' +'+winMat+'（'+tr('共')+' '+(SAVE.mat||0)+'）',W/2,236,8,'#b8a0ff');{let yy=252;for(const u of winUnl){T('✦ '+tr('解鎖')+'【'+tr(u.kind)+'】'+tr(u.name)+(progLocked()?'（'+tr('本場')+'）':''),W/2,yy,8,'#ffe9a8');yy+=13;}}cx.globalAlpha=1;}
   drawCursor();
 }
 
 // =====================================================================
 //  主迴圈
 // =====================================================================
-let SAVE={beaten:{},mat:0},winMat=0;try{SAVE=JSON.parse(localStorage.getItem('silverRequiem2'))||SAVE;}catch(e){}
+let SAVE={beaten:{},mat:0},winMat=0,winUnl=[];try{SAVE=JSON.parse(localStorage.getItem('silverRequiem2'))||SAVE;}catch(e){}
 try{if(SAVE.cls==='melee'||SAVE.cls==='ranged')PCLS=SAVE.cls;}catch(e){}
 function saveGame(){try{localStorage.setItem('silverRequiem2',JSON.stringify(SAVE));}catch(e){}}
 function handleInput(){
@@ -2121,7 +2139,7 @@ function handleInput(){
   if(state==='title')titleInput();
   else if(state==='fight'){if(paused){const vr=volRectP(),m_=window.__m;if(m_.l&&(m_.lp?volHit(vr,m_.x,m_.y):window.__volDrag)){window.__volDrag=true;setVol((m_.x-vr.x)/vr.w);}if(!m_.l)window.__volDrag=false;}if((pressed['escape']||pressed['p'])&&!MP.on)paused=!paused;if(MP.on)paused=false;if(paused&&pressed['t']){paused=false;toTitle();}}
   else if(state==='dead'){if(endT>40&&(pressed['r']||pressed['enter']))startFight(bossSel);if(pressed['escape'])(TOWN.inFight?townEnter:toTitle)();}
-  else if(state==='win'){if(endT===1){SAVE.beaten[bossSel+'_'+diffI]=true;winMat=GAMEDIFF===1?3:0;if(winMat)SAVE.mat=(SAVE.mat||0)+winMat;saveGame();}
+  else if(state==='win'){if(endT===1){SAVE.beaten[bossSel+'_'+diffI]=true;winMat=GAMEDIFF===1?3:0;if(winMat)SAVE.mat=(SAVE.mat||0)+winMat;saveGame();winUnl=grantBoss(BOSS_KEY[bossSel]||'mirror');}
     if(endT>60&&pressed['r'])startFight(bossSel);if(endT>60&&(pressed['enter']||pressed['escape']))(TOWN.inFight?townEnter:toTitle)();}
 }
 let last=performance.now(),acc=0;
@@ -2179,7 +2197,7 @@ function mpSendHost(o){if(MP.hostConn)try{MP.hostConn.send(o);}catch(e){}}
 function mpCloseAll(){try{MP.hostConn&&MP.hostConn.close();}catch(e){}for(const id in MP.conns){try{MP.conns[id].close();}catch(e){}}
   try{MP.pub&&MP.pub.destroy();}catch(e){}try{MP.peer&&MP.peer.destroy();}catch(e){}
   MP.peer=MP.pub=MP.hostConn=null;MP.conns={};MP.on=false;MP.host=false;MP.started=false;MP.players=[];MP.rs={};MP.view={};MP.robj={};MP.code=null;MP.probing=false;mpUI();}
-function mpReset(){mpCloseAll();MP.hitIds=new Set();MP.status='';}
+function mpReset(){mpCloseAll();MP.lock=true;MP.sessUnl={};MP.hitIds=new Set();MP.status='';}
 function mpStatus(t){MP.status=t;mpUI();}
 
 // ---------- 房主 ----------
@@ -2194,7 +2212,7 @@ function mpPubSlot(i){if(i>=10||!MP.host||!MP.on)return;const pp=mpNewPeer(MP.PF
   pp.on('error',e=>{if(e&&e.type==='unavailable-id'){try{pp.destroy();}catch(_){}mpPubSlot(i+1);}});}
 function mpHostConn(c){c.on('data',d=>mpHostMsg(c,d));c.on('close',()=>mpDrop(c.peer));}
 function mpDrop(id){if(!MP.host)return;delete MP.conns[id];delete MP.rs[id];delete MP.view[id];delete MP.robj[id];MP.players=MP.players.filter(p=>p.id!==id);mpBroadcastLobby();mpUI();}
-function mpBroadcastLobby(){mpSendAll({t:'lobby',players:MP.players,code:MP.code});}
+function mpBroadcastLobby(){mpSendAll({t:'lobby',players:MP.players,code:MP.code,lk:MP.lock?1:0});}
 function mpHostMsg(c,d){if(!d)return;
   if(d.t==='hello'){if(MP.started||MP.players.length>=6){c.send({t:'full'});setTimeout(()=>{try{c.close();}catch(e){}},400);return;}
     const used=new Set(MP.players.map(p=>p.slot));let sl=0;while(used.has(sl))sl++;
@@ -2209,7 +2227,7 @@ function mpHostMsg(c,d){if(!d)return;
 function mpRemoteDeflect(id,pf){const s=strikes.find(q=>q.id===id);if(!s||s.done||!boss)return;const b=boss;s.done=true;
   b.posture=Math.min(100,b.posture+34);b.postT=150;b.hold=30;b.recoil=1;if(s.onDeflect)s.onDeflect();for(const q of strikes)if(q.b===b)q.done=true;
   stats.parries++;SFX.clang(pf);if(b.posture>=100)postureBreak();}
-function mpHostStart(bi,re){if(!MP.host||MP.started)return;MP.started=true;MP.bi=bi||0;const n=MP.players.length;mpSendAll({t:'start',n,bi:MP.bi,df:GAMEDIFF,re:re?1:0});mpStartLocal(n,MP.bi,re);}
+function mpHostStart(bi,re){if(!MP.host||MP.started)return;MP.started=true;MP.bi=bi||0;const n=MP.players.length;mpSendAll({t:'start',n,bi:MP.bi,df:GAMEDIFF,lk:MP.lock?1:0,re:re?1:0});mpStartLocal(n,MP.bi,re);}
 
 // ---------- 加入 ----------
 function mpJoin(code){code=String(code||'').replace(/\D/g,'');if(code.length!==6){mpStatus('房號是 6 位數字');return;}
@@ -2231,11 +2249,11 @@ function mpRandom(){mpReset();MP.on=true;MP.host=false;MP.probing=true;mpStatus(
     pr.on('error',e=>{if(e&&e.type==='peer-unavailable'&&!done&&(!e.message||e.message.includes(cur)))next();});});}
 function mpClientMsg(d){if(!d)return;
   if(d.t==='welcome'){MP.myId=d.id;MP.me.slot=d.slot;MP.code=d.code;MP.status='';mpUI();return;}
-  if(d.t==='lobby'){MP.players=d.players;MP.code=d.code;mpUI();return;}
+  if(d.t==='lobby'){MP.players=d.players;MP.code=d.code;MP.lock=d.lk!==0;mpUI();return;}
   if(d.t==='full'){mpCloseAll();mpStatus('房間已滿或已經開打');return;}
   if(d.t==='chat'){mpChatLocal(d.s,d.x);return;}
   if(d.t==='ctr'){if(P&&!P.dead){P.stun=42;P.sw=null;SFX.clang(true);flash=.5;flashCol='160,230,255';addShake(6);const c=pc();ring(c.x,c.y,'#9fe8ff',4,24);part(c.x,c.y,26,'#9fe8ff',4,26);}return;}
-  if(d.t==='start'){MP.started=true;GAMEDIFF=d.df||0;mpStartLocal(d.n,d.bi,d.re);return;}
+  if(d.t==='start'){MP.started=true;GAMEDIFF=d.df||0;MP.lock=d.lk!==0;mpStartLocal(d.n,d.bi,d.re);return;}
   if(d.t==='snap'){mpApplySnap(d);return;}
   if(d.t==='hurt'){if(P&&!P.dead&&state==='fight')hurt(d.d);return;}
   if(d.t==='exec'){if(P&&!P.dead&&state==='fight'&&boss&&execT<=0)execStart(boss);return;}
@@ -2411,6 +2429,7 @@ function mpUI(){const root=document.getElementById('mpRoot');if(!root)return;
     for(const pl of MP.players){const li=document.createElement('div');li.className='mpP';const me=(MP.host&&pl.id==='h')||pl.id===MP.myId;
       li.innerHTML='<i style="background:'+MPCSS[pl.slot]+'"></i>'+(pl.id==='h'?'房主':'玩家')+' · '+MPCOL[pl.slot][0]+' · '+(pl.male?'男':'女')+(me?' （你）':'');list.appendChild(li);}
     const n=MP.players.length;document.getElementById('mpInfo').textContent=n+' / 6 人　Boss 血量 '+Math.round(5000*(1+1.75*(n-1)));
+    {const lb=document.getElementById('mpLock');if(lb){lb.textContent=tr(MP.lock?'開（舊角色的解鎖會被鎖住）':'關（可以帶著已解鎖的內容）');lb.disabled=!MP.host;}}
     document.getElementById('mpStart').style.display=MP.host?'':'none';document.getElementById('mpWait').style.display=MP.host?'none':'';}}
 (function(){const root=document.createElement('div');root.id='mpRoot';root.innerHTML=`
 <style>
@@ -2441,6 +2460,7 @@ function mpUI(){const root=document.getElementById('mpRoot');if(!root)return;
   </div>
   <div id="mpRoom"><h2>房間</h2><div class="lab">房號（分享給朋友）</div><div class="code" id="mpCode"></div>
     <div class="lab">角色外觀</div><div class="row"><button data-g="f">女角</button><button data-g="m">男角</button></div>
+    <div class="lab">進度鎖定</div><div class="row"><button id="mpLock">開（舊角色的解鎖會被鎖住）</button></div>
     <div class="lab" id="mpInfo"></div><div id="mpList"></div>
     <div class="row"><button id="mpStart">開始戰鬥</button><button id="mpWait" disabled>等待房主開始…</button><button id="mpLv" style="flex:none;width:72px">離開</button></div>
   </div>
@@ -2451,7 +2471,7 @@ function mpUI(){const root=document.getElementById('mpRoot');if(!root)return;
   $('mpX').onclick=()=>{MP.open=false;mpUI();};
   $('mpNew').onclick=()=>mpCreate();$('mpRand').onclick=()=>mpRandom();
   $('mpGo').onclick=()=>mpJoin($('mpIn').value);$('mpIn').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')mpJoin($('mpIn').value);});
-  $('mpStart').onclick=()=>mpHostStart();$('mpLv').onclick=()=>mpLeave();
+  $('mpStart').onclick=()=>mpHostStart();$('mpLock').onclick=()=>{if(!MP.host)return;MP.lock=!MP.lock;mpUI();try{mpBroadcastLobby();}catch(e){}};$('mpLv').onclick=()=>mpLeave();
   for(const b of root.querySelectorAll('[data-g]'))b.onclick=()=>{MP.me.male=b.dataset.g==='m';if(MP.on){if(MP.host){const p=MP.players.find(q=>q.id==='h');if(p)p.male=MP.me.male;mpBroadcastLobby();}else mpSendHost({t:'male',male:MP.me.male});}mpUI();};
   let lastState='';setInterval(()=>{if(state!==lastState){lastState=state;mpUI();}},200);mpUI();
 })();
@@ -2474,7 +2494,7 @@ const DICT={'單人模式':'Singleplayer','多人模式':'Multiplayer','設定':
   '無敵模式':'God mode','自動瞄準':'Aimbot','生命已補滿':'Health restored','跳到第 ':'Jumped to phase ',' 階段':'','用法：/phase 1~4':'Usage: /phase 1~4','未知指令：':'Unknown command: ',
   'Boss 血條已清空，進入最終招':'Boss HP emptied — final stand begins','Boss 血條已清空':'Boss HP emptied','跳過最終招':'Final stand skipped','目前沒有可清空的 Boss':'No boss to clear','怒氣已回滿':'Rage refilled','請先進入戰鬥':'Enter a battle first',
   '補血藥水無冷卻':'No potion cooldown','手機介面':'Mobile UI','多人模式中只有房主能用 /phase、/kill':'Only the host can use /phase and /kill in multiplayer','多人模式沒有怒氣':'No rage in multiplayer',
-  '選擇 Boss':'Choose a Boss','建立角色':'Create Character','選擇職業 · 單人模式：白髮女角':'Choose a class · Singleplayer: white-haired heroine','太刀・冷兵器':'Katana · blades','格擋：振刀':'Guard: blade parry','槍・弓':'Gun · bow','格擋：舉武器擋':'Guard: weapon block','開發中':'In development','近戰傷害':'Melee dmg','遠程傷害':'Ranged dmg','基本攻擊':'Basic attack','服裝：':'Outfit: ','冒險者服裝':'Adventurer garb','銀刃禮裙':'Silver Blade gown','打敗帝國前期 Boss 解鎖':'Unlocked by defeating an early Empire boss','切換武器（太刀／手槍／弓）':'Switch weapon (katana / gun / bow)','職業：':'Class: ','更換':'Change','近戰':'Melee','遠程':'Ranged','魔法':'Magic','輔助':'Support','盜賊':'Rogue','困難獎勵：材料':'Hard reward: materials','（共':'(total','戰鬥中不能切換難度':'Cannot change difficulty during battle','難度：':'Difficulty: ','只有房主能切換難度':'Only the host can change difficulty','音樂欣賞':'Music Room','▶ 播放':'▶ Play','❚❚ 暫停':'❚❚ Pause','■ 停止':'■ Stop','載入中…':'Loading…','主選單':'Main Menu','第一階段':'Phase I','第二階段':'Phase II','第三階段':'Phase III','第四階段':'Phase IV','最終謝幕':'Final Curtain','觀戰中 · 左鍵切換':'Spectating · Click to switch','左鍵：觀戰其他玩家':'Click: spectate a teammate','難度':'Mode','普通':'Normal','困難':'Hard','極難':'Extreme','開發中':'In development','彈幕密集度 ×2、Boss 最大血量 +50%':'2× bullet density, boss max HP +50%','標準難度':'Standard difficulty','操作說明':'Controls','左右移動（連按兩下：閃避）':'Move (double-tap: dodge)','閃避':'Dodge','空白鍵 / W':'Space / W','跳躍、飛行':'Jump / fly','滑鼠左鍵':'Left mouse','攻擊（刀）／射擊（槍）':'Slash (katana) / shoot (gun)','滑鼠右鍵 / F':'Right mouse / F','振刀（黃光攻擊可彈反，紅光不行）':'Parry (yellow flashes only, not red)','切換刀／手槍':'Switch katana / gun','切換刀／手槍／弓':'Switch katana / gun / bow','換彈':'Reload','補血藥水':'Healing potion','聊天／指令（T 或 /，↑ 叫回上一句，輸入 /help）':'Chat / commands (T or /, ↑ recalls last, /help)','暫停':'Pause','鏡中銀影':'Silver Reflection','敬請期待':'Coming soon','？？？':'???','— 撐過 30 秒 —':'— Survive 30 seconds —','復活倒數 ':'Respawn in ','全員陣亡':'PARTY WIPED','清空Boss血條':'empty boss HP','回滿怒氣':'full rage','藥水無冷卻':'no potion CD',
+  '選擇 Boss':'Choose a Boss','建立角色':'Create Character','選擇職業 · 單人模式：白髮女角':'Choose a class · Singleplayer: white-haired heroine','太刀・冷兵器':'Katana · blades','格擋：振刀':'Guard: blade parry','槍・弓':'Gun · bow','格擋：舉武器擋':'Guard: weapon block','開發中':'In development','近戰傷害':'Melee dmg','遠程傷害':'Ranged dmg','基本攻擊':'Basic attack','解鎖':'Unlocked','本場':'this session','髮型：':'Hair: ','白色長髮':'Long white hair','短髮':'Short hair','打敗鏡中銀影':'Defeat The Silver Reflection','成長':'Progress','服裝':'Outfit','髮型':'Hair','招式':'Move','二段閃避':'Double dodge','滑步斬':'Slide slash','下劈':'Plunge','馬尾':'Ponytail','進度鎖定':'Progress lock','開（舊角色的解鎖會被鎖住）':'On (existing unlocks are locked)','關（可以帶著已解鎖的內容）':'Off (bring your unlocks)','服裝：':'Outfit: ','冒險者服裝':'Adventurer garb','銀刃禮裙':'Silver Blade gown','打敗帝國前期 Boss 解鎖':'Unlocked by defeating an early Empire boss','切換武器（太刀／手槍／弓）':'Switch weapon (katana / gun / bow)','職業：':'Class: ','更換':'Change','近戰':'Melee','遠程':'Ranged','魔法':'Magic','輔助':'Support','盜賊':'Rogue','困難獎勵：材料':'Hard reward: materials','（共':'(total','戰鬥中不能切換難度':'Cannot change difficulty during battle','難度：':'Difficulty: ','只有房主能切換難度':'Only the host can change difficulty','音樂欣賞':'Music Room','▶ 播放':'▶ Play','❚❚ 暫停':'❚❚ Pause','■ 停止':'■ Stop','載入中…':'Loading…','主選單':'Main Menu','第一階段':'Phase I','第二階段':'Phase II','第三階段':'Phase III','第四階段':'Phase IV','最終謝幕':'Final Curtain','觀戰中 · 左鍵切換':'Spectating · Click to switch','左鍵：觀戰其他玩家':'Click: spectate a teammate','難度':'Mode','普通':'Normal','困難':'Hard','極難':'Extreme','開發中':'In development','彈幕密集度 ×2、Boss 最大血量 +50%':'2× bullet density, boss max HP +50%','標準難度':'Standard difficulty','操作說明':'Controls','左右移動（連按兩下：閃避）':'Move (double-tap: dodge)','閃避':'Dodge','空白鍵 / W':'Space / W','跳躍、飛行':'Jump / fly','滑鼠左鍵':'Left mouse','攻擊（刀）／射擊（槍）':'Slash (katana) / shoot (gun)','滑鼠右鍵 / F':'Right mouse / F','振刀（黃光攻擊可彈反，紅光不行）':'Parry (yellow flashes only, not red)','切換刀／手槍':'Switch katana / gun','切換刀／手槍／弓':'Switch katana / gun / bow','換彈':'Reload','補血藥水':'Healing potion','聊天／指令（T 或 /，↑ 叫回上一句，輸入 /help）':'Chat / commands (T or /, ↑ recalls last, /help)','暫停':'Pause','鏡中銀影':'Silver Reflection','敬請期待':'Coming soon','？？？':'???','— 撐過 30 秒 —':'— Survive 30 seconds —','復活倒數 ':'Respawn in ','全員陣亡':'PARTY WIPED','清空Boss血條':'empty boss HP','回滿怒氣':'full rage','藥水無冷卻':'no potion CD',
   '無敵':'god','補滿':'heal','跳階段':'phase','手機介面':'mobile UI','：開':': ON','：關':': OFF','此瀏覽器不支援全屏：iPhone 請用「分享 → 加入主畫面」再開啟':'Fullscreen not supported here. On iPhone use Share → Add to Home Screen'};
 const DICTK=Object.keys(DICT).sort((a,b)=>b.length-a.length);
 function tr(t){t=String(t);if(LANG!=='en')return t;for(const k of DICTK)if(t.includes(k))t=t.split(k).join(DICT[k]);return t;}
@@ -2493,7 +2513,10 @@ function tmPick(bi){const m=TM.mode;TM.panel=null;tmUI();if(m==='mp'){if(MP.host
 function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show=state==='title';
   r.style.display=show?'':'none';const items=document.getElementById('tItems');items.style.display=(!TM.panel&&!MP.open)?'':'none';
   document.getElementById('tSet').style.display=TM.panel==='set'?'block':'none';document.getElementById('tMus').style.display=TM.panel==='music'?'block':'none';if(TM.panel!=='music'&&SMP.prev!==undefined){SMP.prev=undefined;SMP.pPause=null;if(SMP.bg){if(SMP.cur)smpFadeOut(SMP.cur,.3);SMP.cur=SMP.bg;SMP.bg=null;}}document.getElementById('tBoss').style.display=TM.panel==='boss'?'block':'none';{const tc=document.getElementById('tCls');if(tc)tc.style.display=TM.panel==='cls'?'block':'none';const to=document.getElementById('tOutfit');if(to){const cur=curOutfit();to.innerHTML='<span>'+tr('服裝：')+'</span>'+Object.keys(OUTFITS).map(k=>{const ok=outfitOK(k),o=OUTFITS[k];return '<button data-o="'+k+'" class="'+(k===cur?'sel':'')+'" '+(ok?'':'disabled title="'+tr(o.lock)+'"')+'>'+(ok?'':'🔒 ')+tr(o.name)+(ok?'':'<br><small>'+tr(o.lock)+'</small>')+'</button>';}).join('');
-  for(const ob of to.querySelectorAll('button[data-o]'))ob.onclick=()=>{if(!outfitOK(ob.dataset.o))return;SAVE.outfit=ob.dataset.o;saveGame();tmUI();};}const cl=document.getElementById('tClsLine');if(cl){cl.innerHTML=tr('職業：')+tr(CLS_NAME[PCLS])+(TM.mode==='single'?'<button id="tClsChg">'+tr('更換')+'</button>':'');const cb=document.getElementById('tClsChg');if(cb)cb.onclick=()=>{TM.panel='cls';tmUI();};}}
+  for(const ob of to.querySelectorAll('button[data-o]'))ob.onclick=()=>{if(!outfitOK(ob.dataset.o))return;SAVE.outfit=ob.dataset.o;saveGame();tmUI();};}
+  const th=document.getElementById('tHair');if(th){const ch=curHair(),sh=has('hair.short');th.innerHTML='<span>'+tr('髮型：')+'</span><button data-h="long" class="'+(ch==='long'?'sel':'')+'">'+tr('白色長髮')+'</button><button data-h="short" class="'+(ch==='short'?'sel':'')+'" '+(sh?'':'disabled')+'>'+(sh?'':'🔒 ')+tr('短髮')+(sh?'':'<br><small>'+tr('打敗鏡中銀影')+'</small>')+'</button>';
+    for(const hb of th.querySelectorAll('button[data-h]'))hb.onclick=()=>{SAVE.hair=hb.dataset.h;saveGame();tmUI();};}
+  const tg=document.getElementById('tGrow');if(tg){const n=UNLOCKS.filter(u=>has(u.id)).length;tg.innerHTML='<div class="hd">'+tr('成長')+'　'+n+' / '+UNLOCKS.length+'</div>'+UNLOCKS.map(u=>has(u.id)?'<div class="ok">✦ 【'+tr(u.kind)+'】<b>'+tr(u.name)+'</b></div>':'<div>🔒 【'+tr(u.kind)+'】'+tr(u.name)+' — '+tr(u.cond)+'</div>').join('');}const cl=document.getElementById('tClsLine');if(cl){cl.innerHTML=tr('職業：')+tr(CLS_NAME[PCLS])+(TM.mode==='single'?'<button id="tClsChg">'+tr('更換')+'</button>':'');const cb=document.getElementById('tClsChg');if(cb)cb.onclick=()=>{TM.panel='cls';tmUI();};}}
   const mpp=document.getElementById('mpPanel');if(mpp&&TM.panel==='boss')mpp.style.display='none';
   const mo=document.getElementById('mpOpen');if(mo)mo.style.display='none';
   const mv=document.getElementById('tMv'),sv=document.getElementById('tSv');if(mv&&document.activeElement!==mv)mv.value=Math.round((music.on?musicVol:0)*100);if(sv&&document.activeElement!==sv)sv.value=Math.round(sfxVol*100);
@@ -2536,7 +2559,7 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
 #tBoss .d.sel{background:#e8e8f2;color:#111;border-color:#fff}#tBoss .d.dis{opacity:.4;cursor:not-allowed}#tBoss .d small{display:block;font-size:10px;letter-spacing:0;color:#aaa}
 #tBoss .dnote{font-size:12px;color:#a8a6c0;min-height:16px;margin:0 0 10px 4.2em}
 #tBoss .cards{display:flex;gap:12px;justify-content:center}
-#tCls .cards{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}#tCls .card{min-width:92px}#tCls .card .q{font-size:34px;color:#cfcfdc;height:52px}#tCls .card.lock .q{color:#555}#tCls .outfit{display:flex;gap:8px;justify-content:center;align-items:center;margin:12px 0 0;font-size:13px;color:#cfcfdc;flex-wrap:wrap}#tCls .outfit button{padding:5px 10px;border:1px solid #6a6880;background:#15141f;color:#fff;border-radius:3px;cursor:pointer;font:12px \"Noto Serif TC\",serif}#tCls .outfit button.sel{background:#e8e8f2;color:#111}#tCls .outfit button:disabled{opacity:.4;cursor:not-allowed}#tCls .cnote{text-align:center;font-size:12px;color:#a8a6c0;margin:-4px 0 12px}#tCls .card small{font-family:"Noto Serif TC",serif}
+#tCls .cards{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}#tCls .card{min-width:92px}#tCls .card .q{font-size:34px;color:#cfcfdc;height:52px}#tCls .card.lock .q{color:#555}#tCls .outfit{display:flex;gap:8px;justify-content:center;align-items:center;margin:12px 0 0;font-size:13px;color:#cfcfdc;flex-wrap:wrap}#tCls .outfit button{padding:5px 10px;border:1px solid #6a6880;background:#15141f;color:#fff;border-radius:3px;cursor:pointer;font:12px \"Noto Serif TC\",serif}#tCls .outfit button.sel{background:#e8e8f2;color:#111}#tCls .outfit button:disabled{opacity:.4;cursor:not-allowed}#tCls .grow{margin:10px auto 0;max-width:470px;font-size:11.5px;color:#a8a6c0;display:grid;grid-template-columns:1fr 1fr;gap:3px 12px}#tCls .grow .ok{color:#ffe9a8}#tCls .grow b{color:#cfcfdc;font-weight:600}#tCls .grow .hd{grid-column:1/-1;color:#b8a0ff;letter-spacing:.1em}#tCls .cnote{text-align:center;font-size:12px;color:#a8a6c0;margin:-4px 0 12px}#tCls .card small{font-family:"Noto Serif TC",serif}
 #tBoss .clsline{text-align:center;font-size:13px;color:#cfcfdc;margin:-4px 0 12px;letter-spacing:.1em}#tBoss .clsline button{margin-left:8px;padding:2px 10px;border:1px solid #6a6880;background:#15141f;color:#fff;border-radius:3px;cursor:pointer;font:12px "Noto Serif TC",serif}
 #tBoss .card{flex:1;max-width:170px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border:1px solid #6a6880;background:#12111a;color:#fff;border-radius:3px;font-family:"Noto Serif TC",serif;cursor:pointer;transition:transform .12s,box-shadow .12s}
 #tCls .card{flex:1;max-width:170px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border:1px solid #6a6880;background:#12111a;color:#fff;border-radius:3px;font-family:"Noto Serif TC",serif;cursor:pointer;transition:transform .12s,box-shadow .12s}
@@ -2602,7 +2625,7 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
   <div class="card lock"><span class="q">✦</span><b>魔法</b><small>開發中</small></div>
   <div class="card lock"><span class="q">✚</span><b>輔助</b><small>開發中</small></div>
   <div class="card lock"><span class="q">✧</span><b>盜賊</b><small>開發中</small></div></div>
-  <div class="outfit" id="tOutfit"></div>
+  <div class="outfit" id="tOutfit"></div><div class="outfit" id="tHair"></div><div class="grow" id="tGrow"></div>
   <button class="back" id="tClsBack">返回</button></div>
 <div id="tBoss" class="lace"><h2>選擇 Boss</h2><div class="clsline" id="tClsLine"></div>
   <div class="cards">
@@ -2799,7 +2822,7 @@ function townNpcRig(n){return TOWN.npcRigs[n.id]||(TOWN.npcRigs[n.id]=makeRig(18
 function townEnter(){
   if(!TOWN.fg)townBuild();
   const p=newPlayer();p.outfit=curOutfit();p.pal=OUTFITS[p.outfit].pal;const back=TOWN.inFight;TOWN.inFight=false;p.x=back?1840:960;p.y=TOWN.G-p.h;p.face=back?-1:1;p.sheathed=true;p.onG=true;
-  p.hair=makeChain(9,p.x,p.y);TOWN.p=p;TOWN.dlg=null;
+  p.hair=makeChain(9,p.x,p.y);applyHair(p);TOWN.p=p;TOWN.dlg=null;
   for(const n of NPCS){if(!n.o){n.o={face:n.face,vx:0,vy:0,onG:true,runPh:0,hair:makeChain(9,n.x,TOWN.G-36),rx:n.x,ry:TOWN.G,sheathed:true,sw:null,parryT:0,weapon:'katana',gunLA:0,recoil:0,handL:[0,0],laNow:0,bladeW:0,bladeL:44,sheatheT:0,male:n.male};}}
   state='town';boss=null;paused=false;TOWN.lock=20;setMusic('title',-1);try{tmUI();}catch(e){}
   if(!SAVE.quests||!SAVE.quests.m1){TOWN.toast='走到村長身邊，按 E 或 Enter 對話';TOWN.toastT=360;}
