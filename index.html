@@ -180,10 +180,10 @@ function audioInit(){
   smpLoad();
 }
 // ---- 真實採樣配樂：music/t0~t5.mp3，切換時淡入淡出交疊 ----
-const SMP={buf:[],cur:null,want:-1,mute:false,FADE:1.6,FILES:['music/t0.mp3','music/t1.mp3','music/t2.mp3','music/t3.mp3','music/t4.mp3','music/t5.mp3']};
+const SMP={buf:[],cur:null,want:-1,mute:false,FADE:1.6,FILES:['music/t0.mp3','music/t1.mp3','music/t2.mp3','music/t3.mp3','music/t4.mp3','music/t5.mp3','music/town.mp3']};
 function smpLoad(){if(SMP.loading)return;SMP.loading=true;
   SMP.FILES.forEach((f,i)=>{fetch(f).then(r=>{if(!r.ok)throw 0;return r.arrayBuffer();}).then(ab=>AC.decodeAudioData(ab)).then(b=>{SMP.buf[i]=b;}).catch(()=>{});});}
-function smpTrack(){if(SMP.prev!==undefined&&state==='title')return SMP.prev;if(music.song==='title')return 0;const m=/^mirror_(\d)$/.exec(music.song);if(!m)return -1;const k=+m[1]+1;if(boss&&boss.dead&&SMP.cur)return SMP.cur.id;return (k===4&&boss&&boss.last)?5:k;}
+function smpTrack(){if(state==='town')return 6;if(SMP.prev!==undefined&&state==='title')return SMP.prev;if(music.song==='title')return 0;const m=/^mirror_(\d)$/.exec(music.song);if(!m)return -1;const k=+m[1]+1;if(boss&&boss.dead&&SMP.cur)return SMP.cur.id;return (k===4&&boss&&boss.last)?5:k;}
 function smpFadeOut(c,T){if(!c)return;const g=c.g.gain;g.cancelScheduledValues(AC.currentTime);g.setValueAtTime(g.value,AC.currentTime);g.linearRampToValueAtTime(0,AC.currentTime+T);try{c.src.stop(AC.currentTime+T+.05);}catch(e){}}
 // 音樂欣賞：從指定時間點播放
 function smpPlayAt(id,off){const b=SMP.buf[id];if(!b)return false;const now=AC.currentTime;off=Math.max(0,Math.min(off||0,b.duration-.05));
@@ -1501,7 +1501,7 @@ function drawMirror(){const m=mirror;if(!m)return;const sh=m.t>170&&!m.broken?rn
   g.fillStyle='#3a3a4a';g.fillRect(gl-3,top,32,6);g.fillRect(gl-3,gb,32,4);g.fillRect(gl-3,top,3,gb-top);g.fillRect(gr,top,3,gb-top);g.fillStyle='#8a8aa0';g.fillRect(gl-3,top,32,1);g.fillRect(gl-3,top,1,gb-top);
   g.fillStyle='#b8b8cc';g.beginPath();g.arc(x,top-3,5,Math.PI*.15,Math.PI*1.85);g.fill();g.fillStyle='#1a1a26';g.beginPath();g.arc(x+2,top-4,4,0,TAU);g.fill();
   g.fillStyle='#2a2a38';g.fillRect(gl-1,gy-4,5,4);g.fillRect(gr-4,gy-4,5,4);}
-function toTitle(){state='title';boss=null;setMusic('title',-1);if(MP.on){if(MP.host&&MP.started)mpSendAll({t:'back'});MP.started=false;MP.open=true;MP.robj={};MP.view={};mpUI();}}
+function toTitle(){TOWN.inFight=false;state='title';boss=null;setMusic('title',-1);if(MP.on){if(MP.host&&MP.started)mpSendAll({t:'back'});MP.started=false;MP.open=true;MP.robj={};MP.view={};mpUI();}}
 setMusic('title',-1);
 
 function update(){
@@ -1880,6 +1880,7 @@ function drawWeather(){for(const w of weather){if(w.rain){g.strokeStyle=w.col;g.
 function render(){
   g.setTransform(1,0,0,1,0,0);gg.setTransform(1,0,0,1,0,0);gg.clearRect(0,0,W,H);freeSnaps();
   if(state==='title'){drawTitle();}
+  else if(state==='town'){drawTown();}
   else{
     drawBG();drawWeather();
     const sx=shake>0?rnd(-shake,shake):0,sy=shake>0?rnd(-shake,shake):0;shake*=.86;if(shake<.3)shake=0;
@@ -2025,6 +2026,7 @@ function drawBossIcon(b,cxI,cyI){const ph=Math.min(3,b.phase||0),idx=ph<=1?0:ph=
     cx.globalAlpha=1;cx.globalCompositeOperation='source-over';}
   cx.restore();}
 function drawHUD(){
+  if(state==='town'){drawTownUI();return;}
   if(state==='title'){cx.save();cx.translate(TOX*S,TOY*S);const mouse={x:window.__m.x-TOX,y:window.__m.y-TOY};
     if(false)TBTN.forEach((b,i)=>{i=2;const hov=mouse.x>b.x&&mouse.x<b.x+b.w&&mouse.y>b.y&&mouse.y<b.y+b.h;
       R(b.x,b.y,b.w,b.h,hov?'rgba(255,255,255,.12)':'rgba(0,0,0,.45)');R(b.x,b.y,b.w,1,hov?'#fff':'#555');R(b.x,b.y+b.h-1,b.w,1,hov?'#fff':'#555');
@@ -2118,9 +2120,9 @@ function handleInput(){
   if(pressed['m'])toggleMusic();
   if(state==='title')titleInput();
   else if(state==='fight'){if(paused){const vr=volRectP(),m_=window.__m;if(m_.l&&(m_.lp?volHit(vr,m_.x,m_.y):window.__volDrag)){window.__volDrag=true;setVol((m_.x-vr.x)/vr.w);}if(!m_.l)window.__volDrag=false;}if((pressed['escape']||pressed['p'])&&!MP.on)paused=!paused;if(MP.on)paused=false;if(paused&&pressed['t']){paused=false;toTitle();}}
-  else if(state==='dead'){if(endT>40&&(pressed['r']||pressed['enter']))startFight(bossSel);if(pressed['escape'])toTitle();}
+  else if(state==='dead'){if(endT>40&&(pressed['r']||pressed['enter']))startFight(bossSel);if(pressed['escape'])(TOWN.inFight?townEnter:toTitle)();}
   else if(state==='win'){if(endT===1){SAVE.beaten[bossSel+'_'+diffI]=true;winMat=GAMEDIFF===1?3:0;if(winMat)SAVE.mat=(SAVE.mat||0)+winMat;saveGame();}
-    if(endT>60&&pressed['r'])startFight(bossSel);if(endT>60&&(pressed['enter']||pressed['escape']))toTitle();}
+    if(endT>60&&pressed['r'])startFight(bossSel);if(endT>60&&(pressed['enter']||pressed['escape']))(TOWN.inFight?townEnter:toTitle)();}
 }
 let last=performance.now(),acc=0;
 function frame(now){
@@ -2129,6 +2131,7 @@ function frame(now){
     handleInput();
     if(state==='dead'||state==='win'){endT++;frameN++;stepMisc();for(const q of bullets){q.x+=q.vx;q.y+=q.vy;q.life-=3;}bullets=bullets.filter(q=>q.life>0);for(const q of pqi){q.x+=Math.cos(q.a)*q.v;q.y+=Math.sin(q.a)*q.v;q.life--;}pqi=pqi.filter(q=>q.life>0);for(const q of pshots){q.x+=q.vx;q.y+=q.vy;q.life--;}pshots=pshots.filter(q=>q.life>0);strikes=[];lasers=lasers.filter(l=>++l.t<l.tele+l.life);if(boss&&boss.dead)runBoss(boss);}
     else if(state==='fight'&&(!paused||MP.on)){if(hitstop>0)hitstop--;else{gameAcc+=slowmo>0?.35:1;if(slowmo>0)slowmo--;while(gameAcc>=1){gameAcc-=1;update();if(MP.on&&state==='fight')mpAfterUpdate();}}}
+    else if(state==='town')townUpdate();
     else frameN++;
     for(const k in pressed)pressed[k]=false;mouse.lp=mouse.rp=false;}
   render();requestAnimationFrame(frame);
@@ -2630,7 +2633,7 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
   for(const d of root.querySelectorAll('#tBoss .d'))d.onclick=()=>{if(d.disabled)return;GAMEDIFF=+d.dataset.d;tmUI();};
   $('tBossBack').onclick=()=>{TM.panel=TM.mode==='single'?'cls':null;tmUI();mpUI();};
   $('tClsBack').onclick=()=>{TM.panel=null;tmUI();mpUI();};
-  for(const c of root.querySelectorAll('#tCls button.card'))c.onclick=()=>{PCLS=c.dataset.c;SAVE.cls=PCLS;saveGame();TM.panel='boss';tmUI();};
+  for(const c of root.querySelectorAll('#tCls button.card'))c.onclick=()=>{PCLS=c.dataset.c;SAVE.cls=PCLS;saveGame();TM.panel=null;townEnter();};
   // 多人：房主按「開始戰鬥」後才選 Boss
   document.getElementById('mpStart').onclick=()=>{if(!MP.host)return;TM.panel='boss';TM.mode='mp';tmUI();};
   $('tMv').oninput=e=>{setVol(e.target.value/100);tmUI();};
@@ -2721,7 +2724,7 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
   function locked(){return state==='fight'?'戰鬥中不能切換難度':(MP.on&&!MP.host?'只有房主能切換難度':'');}
   function sync(){
     const inFight=state==='fight';
-    b.style.display=inFight?'none':'';const low=state!=='title';b.style.top=low?'auto':'';b.style.bottom=low?'calc(8px + env(safe-area-inset-bottom))':'';tip.style.top=low?'auto':'';tip.style.bottom=low?'calc(44px + env(safe-area-inset-bottom))':'';
+    b.style.display=inFight?'none':'';const low=state!=='title'&&state!=='town';b.style.top=low?'auto':'';b.style.bottom=low?'calc(8px + env(safe-area-inset-bottom))':'';tip.style.top=low?'auto':'';tip.style.bottom=low?'calc(44px + env(safe-area-inset-bottom))':'';
     b.textContent=tr('難度：')+tr(GAMEDIFF===1?'困難':'普通');
     b.classList.toggle('hard',GAMEDIFF===1);b.disabled=!!locked();
     if(tipT&&performance.now()>tipT){tip.style.display='none';tipT=0;}
@@ -2731,6 +2734,138 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
   try{const v=parseInt(localStorage.getItem('sr_diff'));if(v===0||v===1)GAMEDIFF=v;}catch(_){}
   setInterval(sync,200);sync();
 })();
+
+// =====================================================================
+//  主鎮（demo 第 3 步）：村鎮中央開場、找 NPC 接主線一
+// =====================================================================
+const TOWN={W:2000,G:392,p:null,cam:0,dlg:null,from:false,bg:null,fg:null,npcRigs:{}};
+const NPCS=[
+  {id:'elder',x:1000,name:'村長',male:true,pal:{hairL:'#e8e8e8',hairM:'#b8b8bc',hairD:'#7c7c84',blk:'#3c4a5e',blk2:'#2a3444',blk3:'#56667e',lace:'#d8d0bc',laceS:'#a49c88'},face:-1,
+   talk(){const q=SAVE.quests||{};
+     if(!q.m1)return {lines:['旅人，你醒了。這裡是主鎮，你倒在鎮外的路邊，是巡邏的守衛把你帶回來的。','最近西邊森林裡的史萊姆越來越多，連獵人都不敢進去了。','有人說，牠們的首領眼裡帶著不祥的紫光……','你看起來不是普通人。能替我們去森林看看嗎？'],
+       done(){SAVE.quests=Object.assign(SAVE.quests||{},{m1:1});saveGame();TOWN.toast='接下主線一：森林的異變';TOWN.toastT=200;}};
+     return {lines:['史萊姆首領就在西邊的森林深處。','（demo：森林與史萊姆首領還在開發中）','路上小心。森林那邊……最近連龍的吼聲都聽得到。']};}},
+  {id:'merchant',x:640,name:'旅行商人',male:true,pal:{hairL:'#c89a6a',hairM:'#9a6c44',hairD:'#5e3e24',blk:'#5a2e2e',blk2:'#3e1e1e',blk3:'#7a4444',lace:'#e0c890',laceS:'#a89058'},face:1,
+   talk(){SAVE.rumor=Object.assign(SAVE.rumor||{},{m2:1});saveGame();
+     return {lines:['要買點什麼嗎？……開玩笑的，貨都被帝國的人徵走了。','東邊的帝國最近到處徵兵，還派人去挖什麼古代遺跡。','聽說挖出來的東西會自己發光……我是不想再往東走了。']};}},
+  {id:'guard',x:1420,name:'老守衛',male:true,pal:{hairL:'#9a9aa0',hairM:'#6c6c74',hairD:'#44444c',blk:'#44484c',blk2:'#2e3236',blk3:'#666c72',lace:'#b8b8c0',laceS:'#80808a'},face:-1,
+   talk(){SAVE.rumor=Object.assign(SAVE.rumor||{},{m3:1});saveGame();
+     return {lines:['就是我把你從路邊撿回來的。你倒下的時候，手裡還緊緊握著武器。','……你聽過湖底的歌聲嗎？晚上有時候會從北邊的湖傳過來。','老一輩說那是「無光裔」在唱歌。別在守門的人面前提這個詞，他們很忌諱。']};}},
+];
+const SIGNS=[
+  {x:120,text:'← 西方森林（主線一，開發中）',act:null},
+  {x:1880,text:'試煉之鏡（demo 測試）：挑戰鏡中銀影',act(){TOWN.inFight=true;startFight(0);}},
+];
+function townRng(seed){let s=seed;return()=>{s=(s*9301+49297)%233280;return s/233280;};}
+function townBuild(){
+  const H_=H,Wt=TOWN.W,R_=townRng(7);
+  // 遠景：黃昏天空＋山丘
+  const bg=mk(W,H_),b=bg.getContext('2d');
+  const gr=b.createLinearGradient(0,0,0,H_);gr.addColorStop(0,'#2a2140');gr.addColorStop(.45,'#7a4a5a');gr.addColorStop(.75,'#e0946a');gr.addColorStop(1,'#f2c48a');
+  b.fillStyle=gr;b.fillRect(0,0,W,H_);
+  for(let k=0;k<60;k++){b.fillStyle='rgba(255,255,255,'+(R_()*.5+.2)+')';b.fillRect(R_()*W|0,R_()*120|0,1,1);}
+  b.fillStyle='rgba(255,230,180,.9)';b.beginPath();b.arc(560,250,26,0,TAU);b.fill();
+  TOWN.bg=bg;
+  const far=mk(Wt,H_),f=far.getContext('2d');
+  f.fillStyle='#5a3a4c';f.beginPath();f.moveTo(0,H_);for(let x=0;x<=Wt;x+=20)f.lineTo(x,280+Math.sin(x/170)*22+Math.sin(x/53)*8);f.lineTo(Wt,H_);f.fill();
+  f.fillStyle='#43293a';f.beginPath();f.moveTo(0,H_);for(let x=0;x<=Wt;x+=20)f.lineTo(x,318+Math.sin(x/120+1)*14+Math.sin(x/37)*5);f.lineTo(Wt,H_);f.fill();
+  TOWN.far=far;
+  // 中景：房屋、燈柱、噴泉
+  const fg=mk(Wt,H_),c=fg.getContext('2d'),G=TOWN.G;TOWN.lamps=[];TOWN.wins=[];
+  const houses=[[200,150,110],[380,130,90],[520,110,120],[760,160,100],[1180,150,104],[1340,120,92],[1560,170,120],[1760,110,96]];
+  for(const [hx,hw,hh] of houses){const top=G-hh,wall=['#6e5a48','#7a6450','#5e4c3e'][(hx/10|0)%3],roof=['#4a2a2a','#3a2e3e','#5a3424'][(hx/7|0)%3];
+    c.fillStyle=wall;c.fillRect(hx,top,hw,hh);c.fillStyle='rgba(0,0,0,.18)';c.fillRect(hx,top,6,hh);
+    c.fillStyle='#3a2a20';for(let y=top+18;y<G;y+=22)c.fillRect(hx,y,hw,2);
+    c.fillStyle=roof;c.beginPath();c.moveTo(hx-12,top+2);c.lineTo(hx+hw/2,top-hh*.42);c.lineTo(hx+hw+12,top+2);c.fill();
+    c.fillStyle='rgba(255,255,255,.08)';c.beginPath();c.moveTo(hx-12,top+2);c.lineTo(hx+hw/2,top-hh*.42);c.lineTo(hx+hw/2,top-hh*.42+4);c.lineTo(hx-6,top+2);c.fill();
+    c.fillStyle='#2a1e18';c.fillRect(hx+hw/2-9,G-30,18,30);c.fillStyle='#d8a050';c.fillRect(hx+hw/2+5,G-16,2,2);
+    for(const wx of [hx+14,hx+hw-30]){const wy=top+24;c.fillStyle='#2a1e18';c.fillRect(wx-2,wy-2,20,18);c.fillStyle='#ffd27a';c.fillRect(wx,wy,16,14);c.fillStyle='#2a1e18';c.fillRect(wx+7,wy,2,14);c.fillRect(wx,wy+6,16,2);TOWN.wins.push([wx+8,wy+7]);}
+    c.fillStyle='#4a3a30';c.fillRect(hx+hw*.7,top-hh*.3,10,22);}
+  // 噴泉（鎮中央）
+  const fx_=1000;c.fillStyle='#6c6c78';c.fillRect(fx_-60,G-14,120,14);c.fillStyle='#8a8a96';c.fillRect(fx_-60,G-16,120,3);
+  c.fillStyle='#5a6c8a';c.fillRect(fx_-54,G-12,108,6);c.fillStyle='#7a7a86';c.fillRect(fx_-6,G-52,12,38);c.fillRect(fx_-24,G-56,48,5);
+  // 燈柱
+  for(const lx of [300,700,880,1120,1300,1500,1700]){c.fillStyle='#24202a';c.fillRect(lx-2,G-70,4,70);c.fillRect(lx-8,G-74,16,5);c.fillStyle='#ffe0a0';c.fillRect(lx-4,G-70,8,8);TOWN.lamps.push([lx,G-66]);}
+  // 地面：石板路
+  c.fillStyle='#4a3e3a';c.fillRect(0,G,Wt,H_-G);c.fillStyle='#5c4e48';for(let x=0;x<Wt;x+=28)for(let y=G+4;y<H_;y+=14)c.fillRect(x+((y/14|0)%2)*14,y,24,10);
+  c.fillStyle='#8a7a6a';c.fillRect(0,G,Wt,2);
+  // 告示牌
+  for(const s of SIGNS){c.fillStyle='#3a2818';c.fillRect(s.x-2,G-34,4,34);c.fillStyle='#7a5a3a';c.fillRect(s.x-18,G-40,36,16);c.fillStyle='#4a3420';c.fillRect(s.x-18,G-28,36,2);}
+  // 鏡之試煉：發光的鏡門
+  c.fillStyle='#1c1830';c.fillRect(1920,G-90,40,90);c.fillStyle='#8a70ff';c.fillRect(1924,G-86,32,84);c.fillStyle='rgba(255,255,255,.35)';c.fillRect(1928,G-82,6,76);
+  TOWN.fg=fg;
+}
+function townNpcRig(n){return TOWN.npcRigs[n.id]||(TOWN.npcRigs[n.id]=makeRig(180,90,130,Object.assign({},PC,n.pal),'#050508'));}
+function townEnter(){
+  if(!TOWN.fg)townBuild();
+  const p=newPlayer();p.outfit=curOutfit();p.pal=OUTFITS[p.outfit].pal;const back=TOWN.inFight;TOWN.inFight=false;p.x=back?1840:960;p.y=TOWN.G-p.h;p.face=back?-1:1;p.sheathed=true;p.onG=true;
+  p.hair=makeChain(9,p.x,p.y);TOWN.p=p;TOWN.dlg=null;
+  for(const n of NPCS){if(!n.o){n.o={face:n.face,vx:0,vy:0,onG:true,runPh:0,hair:makeChain(9,n.x,TOWN.G-36),rx:n.x,ry:TOWN.G,sheathed:true,sw:null,parryT:0,weapon:'katana',gunLA:0,recoil:0,handL:[0,0],laNow:0,bladeW:0,bladeL:44,sheatheT:0,male:n.male};}}
+  state='town';boss=null;paused=false;TOWN.lock=20;setMusic('title',-1);try{tmUI();}catch(e){}
+  if(!SAVE.quests||!SAVE.quests.m1){TOWN.toast='走到村長身邊，按 E 或 Enter 對話';TOWN.toastT=360;}
+}
+function townNear(){const p=TOWN.p,px=p.x+p.w/2;let best=null,bd=46;
+  for(const n of NPCS){const d=Math.abs(n.x-px);if(d<bd){bd=d;best={kind:'npc',n};}}
+  for(const s of SIGNS){const d=Math.abs(s.x-px);if(d<bd){bd=d;best={kind:'sign',s};}}
+  if(px>1900&&!best)best={kind:'sign',s:SIGNS[1]};return best;}
+function townUpdate(){
+  const p=TOWN.p;frameN++;
+  if(TOWN.lock>0)TOWN.lock--;
+  const ok=(pressed['e']||pressed['enter'])&&!(TOWN.lock>0);
+  if(TOWN.dlg){const d=TOWN.dlg;d.t+=1.4;const full=d.lines[d.i].length;
+    if(ok||mouse.lp){if(d.t<full)d.t=full;else{d.i++;d.t=0;if(d.i>=d.lines.length){const fin=d.done;TOWN.dlg=null;if(fin)fin();}}}
+    p.vx*=.7;
+  }else{
+    if(pressed['escape']){toTitle();return;}
+    const L_=keys['a']||keys['arrowleft'],R_=keys['d']||keys['arrowright'];
+    const ax=(R_?1:0)-(L_?1:0);p.vx+=ax*.55;p.vx*=.82;if(ax)p.face=ax;
+    if((pressed['w']||pressed[' ']||pressed['arrowup'])&&p.onG){p.vy=-7.2;p.onG=false;}
+    if(ok){const t=townNear();if(t&&t.kind==='npc'){const r=t.n.talk();TOWN.dlg={name:t.n.name,lines:r.lines,done:r.done,i:0,t:0};t.n.o.face=Math.sign(p.x-t.n.x)||1;}
+      else if(t&&t.kind==='sign'){if(t.s.act){t.s.act();return;}TOWN.toast=t.s.text;TOWN.toastT=160;}}
+  }
+  p.vy+=.38;p.x+=p.vx;p.y+=p.vy;if(p.y+p.h>=TOWN.G){p.y=TOWN.G-p.h;p.vy=0;p.onG=true;}
+  p.x=clamp(p.x,10,TOWN.W-20);if(p.onG&&Math.abs(p.vx)>.5)p.runPh+=Math.abs(p.vx)*.13;
+  stepChain(p.hair,p.x+p.w/2-p.face*2.5*PS,p.y+p.h-43*PS,3.3*PS,.22,.86,Math.sin(frameN/30)*.04-p.vx*.02);p.rx=Math.round(p.x+p.w/2);p.ry=Math.round(p.y+p.h);
+  for(const n of NPCS){const o=n.o;stepChain(o.hair,n.x-o.face*2.5*PS,TOWN.G-43*PS,3.3*PS,.22,.86,Math.sin(frameN/34+n.x)*.05);}
+  TOWN.cam=lerp(TOWN.cam,clamp(p.x-W/2,0,TOWN.W-W),.12);
+  if(TOWN.toastT>0)TOWN.toastT--;
+}
+function drawTown(){
+  if(!TOWN.fg)townBuild();
+  const cxm=Math.round(TOWN.cam);g.imageSmoothingEnabled=false;
+  g.drawImage(TOWN.bg,0,0);g.drawImage(TOWN.far,-Math.round(cxm*.4),0);g.drawImage(TOWN.far,-Math.round(cxm*.4)+TOWN.W,0);
+  g.drawImage(TOWN.fg,-cxm,0);
+  // 燈光、窗光（glow 層）
+  gg.save();gg.translate(-cxm,0);
+  for(const [lx,ly] of TOWN.lamps){const sg=soft(26,'rgba(255,210,140,.55)');gg.globalAlpha=.7+.08*Math.sin(frameN/9+lx);gg.drawImage(sg,lx-26,ly-26);}
+  for(const [wx,wy] of TOWN.wins){const sg=soft(16,'rgba(255,200,120,.4)');gg.globalAlpha=.6;gg.drawImage(sg,wx-16,wy-16);}
+  {const sg=soft(40,'rgba(170,140,255,.55)');gg.globalAlpha=.6+.2*Math.sin(frameN/20);gg.drawImage(sg,1940-40,TOWN.G-46-40);}
+  gg.globalAlpha=1;gg.restore();
+  g.save();g.translate(-cxm,0);
+  for(const n of NPCS){const o=n.o;const out=townNpcRig(n).render(x=>drawPlayerRig(x,o,Object.assign({},PC,n.pal)));g.drawImage(out,n.x-90,TOWN.G-130);}
+  const p=TOWN.p;const rg=outfitRig(p.outfit);const out=rg.render(x=>drawPlayerRig(x,p,p.pal));g.drawImage(out,p.rx-rg.ox,p.ry-rg.oy);
+  g.restore();
+}
+function drawTownUI(){
+  const cxm=TOWN.cam,p=TOWN.p,t=townNear();
+  // 互動提示
+  if(t&&!TOWN.dlg){const x=(t.kind==='npc'?t.n.x:(t.s.x>1890?1940:t.s.x))-cxm,y=TOWN.G-(t.kind==='npc'?60:52);keycap(x-6,y-7,12,'E');
+    T(t.kind==='npc'?t.n.name:'查看',x,y-14,6.5,'#ffe9a8');}
+  // 任務欄
+  const q=SAVE.quests||{},r=SAVE.rumor||{};let qy=34;
+  T('任務',14,qy,7,'#b8a0ff','left');qy+=12;
+  if(q.m1){T('主線一：森林的異變 — 討伐史萊姆首領',14,qy,6.5,'#e8e8f0','left');qy+=11;}
+  else{T('和村長談談',14,qy,6.5,'#9a98b0','left');qy+=11;}
+  if(r.m2){T('傳聞：東邊的帝國在挖古代遺跡',14,qy,6,'#8a88a0','left');qy+=10;}
+  if(r.m3){T('傳聞：北邊的湖底傳來歌聲',14,qy,6,'#8a88a0','left');qy+=10;}
+  T('A/D 移動　W 跳　E 對話　Esc 標題',W/2,H-10,6,'rgba(220,220,235,.55)');
+  if(TOWN.toastT>0){const a=Math.min(1,TOWN.toastT/30);cx.globalAlpha=a;R(W/2-150,56,300,20,'rgba(10,8,20,.8)');R(W/2-150,56,300,1,'#b8a0ff');T(TOWN.toast,W/2,66,7,'#ffffff');cx.globalAlpha=1;}
+  // 對話框
+  if(TOWN.dlg){const d=TOWN.dlg;R(60,H-110,W-120,86,'rgba(8,6,16,.92)');R(60,H-110,W-120,1,'#e8e8f2');R(60,H-25,W-120,1,'#e8e8f2');
+    T(d.name,78,H-96,8,'#ffe9a8','left');const s=d.lines[d.i].slice(0,Math.floor(d.t));
+    const maxC=44;for(let k=0;k*maxC<s.length;k++)T(s.slice(k*maxC,(k+1)*maxC),78,H-76+k*13,7,'#ffffff','left');
+    if(d.t>=d.lines[d.i].length&&frameN%40<26)T('▼',W-80,H-36,6,'#cfcfdc');}
+}
 </script>
 </body>
 </html>
