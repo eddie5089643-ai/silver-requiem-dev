@@ -2059,21 +2059,21 @@ function drawHUD(){
     cx.save();cx.translate(W/2*S,130*S);cx.scale(S*3,S*3);cx.fillStyle='#fff';cx.shadowColor='#fff';cx.shadowBlur=12;cx.beginPath();cx.arc(0,0,8,0,TAU);cx.fill();cx.fillStyle='#000';cx.beginPath();cx.arc(3.5,-2.5,7,0,TAU);cx.fill();cx.restore();cx.shadowBlur=0;
     const s=Math.floor(stats.time/60);T(Math.floor(s/60)+':'+String(s%60).padStart(2,'0'),W/2,168,12,'#ffffff');
     icon('parry',W/2-30,188,'#ffe9a8');T(String(stats.parries),W/2-16,188,9,'#ffe9a8','left');spr2(heartSpr('#ff4060','#a01428'),W/2+10,184);T(String(stats.hits),W/2+24,188,9,'#ff6070','left');
-    keycap(W/2-30,204,24,'↵');icon('home',W/2+2,210);keycap(W/2+12,204,12,'R');icon('retry',W/2+32,210);cx.globalAlpha=1;}
+    keycap(W/2-30,204,24,'↵');icon('home',W/2+2,210);keycap(W/2+12,204,12,'R');icon('retry',W/2+32,210);if(winMat)T(tr('困難獎勵：材料')+' +'+winMat+'（'+tr('共')+' '+(SAVE.mat||0)+'）',W/2,236,8,'#b8a0ff');cx.globalAlpha=1;}
   drawCursor();
 }
 
 // =====================================================================
 //  主迴圈
 // =====================================================================
-let SAVE={beaten:{}};try{SAVE=JSON.parse(localStorage.getItem('silverRequiem2'))||SAVE;}catch(e){}
+let SAVE={beaten:{},mat:0},winMat=0;try{SAVE=JSON.parse(localStorage.getItem('silverRequiem2'))||SAVE;}catch(e){}
 function saveGame(){try{localStorage.setItem('silverRequiem2',JSON.stringify(SAVE));}catch(e){}}
 function handleInput(){
   if(pressed['m'])toggleMusic();
   if(state==='title')titleInput();
   else if(state==='fight'){if(paused){const vr=volRectP(),m_=window.__m;if(m_.l&&(m_.lp?volHit(vr,m_.x,m_.y):window.__volDrag)){window.__volDrag=true;setVol((m_.x-vr.x)/vr.w);}if(!m_.l)window.__volDrag=false;}if((pressed['escape']||pressed['p'])&&!MP.on)paused=!paused;if(MP.on)paused=false;if(paused&&pressed['t']){paused=false;toTitle();}}
   else if(state==='dead'){if(endT>40&&(pressed['r']||pressed['enter']))startFight(bossSel);if(pressed['escape'])toTitle();}
-  else if(state==='win'){if(endT===1){SAVE.beaten[bossSel+'_'+diffI]=true;saveGame();}
+  else if(state==='win'){if(endT===1){SAVE.beaten[bossSel+'_'+diffI]=true;winMat=GAMEDIFF===1?3:0;if(winMat)SAVE.mat=(SAVE.mat||0)+winMat;saveGame();}
     if(endT>60&&pressed['r'])startFight(bossSel);if(endT>60&&(pressed['enter']||pressed['escape']))toTitle();}
 }
 let last=performance.now(),acc=0;
@@ -2425,7 +2425,7 @@ const DICT={'單人模式':'Singleplayer','多人模式':'Multiplayer','設定':
   '無敵模式':'God mode','自動瞄準':'Aimbot','生命已補滿':'Health restored','跳到第 ':'Jumped to phase ',' 階段':'','用法：/phase 1~4':'Usage: /phase 1~4','未知指令：':'Unknown command: ',
   'Boss 血條已清空，進入最終招':'Boss HP emptied — final stand begins','Boss 血條已清空':'Boss HP emptied','跳過最終招':'Final stand skipped','目前沒有可清空的 Boss':'No boss to clear','怒氣已回滿':'Rage refilled','請先進入戰鬥':'Enter a battle first',
   '補血藥水無冷卻':'No potion cooldown','手機介面':'Mobile UI','多人模式中只有房主能用 /phase、/kill':'Only the host can use /phase and /kill in multiplayer','多人模式沒有怒氣':'No rage in multiplayer',
-  '選擇 Boss':'Choose a Boss','音樂欣賞':'Music Room','▶ 播放':'▶ Play','❚❚ 暫停':'❚❚ Pause','■ 停止':'■ Stop','載入中…':'Loading…','主選單':'Main Menu','第一階段':'Phase I','第二階段':'Phase II','第三階段':'Phase III','第四階段':'Phase IV','最終謝幕':'Final Curtain','觀戰中 · 左鍵切換':'Spectating · Click to switch','左鍵：觀戰其他玩家':'Click: spectate a teammate','難度':'Mode','普通':'Normal','困難':'Hard','極難':'Extreme','開發中':'In development','彈幕密集度 ×2、Boss 最大血量 +50%':'2× bullet density, boss max HP +50%','標準難度':'Standard difficulty','操作說明':'Controls','左右移動（連按兩下：閃避）':'Move (double-tap: dodge)','閃避':'Dodge','空白鍵 / W':'Space / W','跳躍、飛行':'Jump / fly','滑鼠左鍵':'Left mouse','攻擊（刀）／射擊（槍）':'Slash (katana) / shoot (gun)','滑鼠右鍵 / F':'Right mouse / F','振刀（黃光攻擊可彈反，紅光不行）':'Parry (yellow flashes only, not red)','切換刀／手槍':'Switch katana / gun','換彈':'Reload','補血藥水':'Healing potion','聊天／指令（T 或 /，↑ 叫回上一句，輸入 /help）':'Chat / commands (T or /, ↑ recalls last, /help)','暫停':'Pause','鏡中銀影':'Silver Reflection','敬請期待':'Coming soon','？？？':'???','— 撐過 30 秒 —':'— Survive 30 seconds —','復活倒數 ':'Respawn in ','全員陣亡':'PARTY WIPED','清空Boss血條':'empty boss HP','回滿怒氣':'full rage','藥水無冷卻':'no potion CD',
+  '選擇 Boss':'Choose a Boss','困難獎勵：材料':'Hard reward: materials','（共':'(total','戰鬥中不能切換難度':'Cannot change difficulty during battle','難度：':'Difficulty: ','只有房主能切換難度':'Only the host can change difficulty','音樂欣賞':'Music Room','▶ 播放':'▶ Play','❚❚ 暫停':'❚❚ Pause','■ 停止':'■ Stop','載入中…':'Loading…','主選單':'Main Menu','第一階段':'Phase I','第二階段':'Phase II','第三階段':'Phase III','第四階段':'Phase IV','最終謝幕':'Final Curtain','觀戰中 · 左鍵切換':'Spectating · Click to switch','左鍵：觀戰其他玩家':'Click: spectate a teammate','難度':'Mode','普通':'Normal','困難':'Hard','極難':'Extreme','開發中':'In development','彈幕密集度 ×2、Boss 最大血量 +50%':'2× bullet density, boss max HP +50%','標準難度':'Standard difficulty','操作說明':'Controls','左右移動（連按兩下：閃避）':'Move (double-tap: dodge)','閃避':'Dodge','空白鍵 / W':'Space / W','跳躍、飛行':'Jump / fly','滑鼠左鍵':'Left mouse','攻擊（刀）／射擊（槍）':'Slash (katana) / shoot (gun)','滑鼠右鍵 / F':'Right mouse / F','振刀（黃光攻擊可彈反，紅光不行）':'Parry (yellow flashes only, not red)','切換刀／手槍':'Switch katana / gun','換彈':'Reload','補血藥水':'Healing potion','聊天／指令（T 或 /，↑ 叫回上一句，輸入 /help）':'Chat / commands (T or /, ↑ recalls last, /help)','暫停':'Pause','鏡中銀影':'Silver Reflection','敬請期待':'Coming soon','？？？':'???','— 撐過 30 秒 —':'— Survive 30 seconds —','復活倒數 ':'Respawn in ','全員陣亡':'PARTY WIPED','清空Boss血條':'empty boss HP','回滿怒氣':'full rage','藥水無冷卻':'no potion CD',
   '無敵':'god','補滿':'heal','跳階段':'phase','手機介面':'mobile UI','：開':': ON','：關':': OFF','此瀏覽器不支援全屏：iPhone 請用「分享 → 加入主畫面」再開啟':'Fullscreen not supported here. On iPhone use Share → Add to Home Screen'};
 const DICTK=Object.keys(DICT).sort((a,b)=>b.length-a.length);
 function tr(t){t=String(t);if(LANG!=='en')return t;for(const k of DICTK)if(t.includes(k))t=t.split(k).join(DICT[k]);return t;}
@@ -2536,8 +2536,7 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
   <div class="mctl"><button class="b" id="tMusPlay">▶ 播放</button><button class="b" id="tMusStop">■ 停止</button></div>
   <button class="back" id="tMusBack">返回</button></div>
 <div id="tBoss" class="lace"><h2>選擇 Boss</h2>
-  <div class="diff"><span>難度</span><button class="d" data-d="0">普通</button><button class="d" data-d="1">困難</button><button class="d dis" data-d="2" disabled>極難<small>開發中</small></button></div>
-  <div class="dnote" id="tDNote"></div><div class="cards">
+  <div class="cards">
   <button class="card" data-b="0"><img id="tBossImg" alt=""><b>鏡中銀影</b><small>The Silver Reflection</small></button>
   <div class="card lock"><span class="q">？</span><b>？？？</b><small>敬請期待</small></div>
   <div class="card lock"><span class="q">？</span><b>？？？</b><small>敬請期待</small></div></div>
@@ -2641,6 +2640,28 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
       act.style.left=Math.round(innerWidth-158)+'px';act.style.top=Math.round(ok?y0+20:Math.max(r.top+12,r.bottom-112))+'px';
       tb.style.left=Math.round(innerWidth/2-108)+'px';tb.style.top=Math.round(ok?r.bottom+8:r.top+4)+'px';fsb.style.left=Math.round(innerWidth/2-34)+'px';fsb.style.top=tb.style.top;pnb.style.left=Math.round(innerWidth/2+40)+'px';pnb.style.top=tb.style.top;}};
   mobLayout();
+})();
+
+// ---- 難度：遊戲中右上角切換（戰鬥中不能切）----
+(function(){
+  const st=document.createElement('style');
+  st.textContent='#diffTog{position:fixed;top:calc(8px + env(safe-area-inset-top));right:calc(8px + env(safe-area-inset-right));z-index:60;font:13px system-ui,"PingFang TC","Microsoft JhengHei",sans-serif;letter-spacing:.08em;padding:6px 12px;border-radius:8px;border:1px solid rgba(184,160,255,.7);background:rgba(16,14,28,.82);color:#e8e4ff;cursor:pointer}#diffTog.hard{border-color:#ff6070;color:#ffd0d6;background:rgba(40,8,14,.85)}#diffTog:disabled{opacity:.45;cursor:default}#diffTip{position:fixed;top:calc(44px + env(safe-area-inset-top));right:calc(8px + env(safe-area-inset-right));z-index:60;font:12px system-ui,sans-serif;color:#ffd0d6;background:rgba(0,0,0,.8);padding:4px 8px;border-radius:6px;display:none}';
+  document.head.appendChild(st);
+  const b=document.createElement('button');b.id='diffTog';document.body.appendChild(b);
+  const tip=document.createElement('div');tip.id='diffTip';document.body.appendChild(tip);
+  let tipT=0;
+  function locked(){return state==='fight'?'戰鬥中不能切換難度':(MP.on&&!MP.host?'只有房主能切換難度':'');}
+  function sync(){
+    const inFight=state==='fight';
+    b.style.display=inFight?'none':'';const low=state!=='title';b.style.top=low?'auto':'';b.style.bottom=low?'calc(8px + env(safe-area-inset-bottom))':'';tip.style.top=low?'auto':'';tip.style.bottom=low?'calc(44px + env(safe-area-inset-bottom))':'';
+    b.textContent=tr('難度：')+tr(GAMEDIFF===1?'困難':'普通');
+    b.classList.toggle('hard',GAMEDIFF===1);b.disabled=!!locked();
+    if(tipT&&performance.now()>tipT){tip.style.display='none';tipT=0;}
+  }
+  b.onclick=e=>{e.stopPropagation();const l=locked();if(l){tip.textContent=tr(l);tip.style.display='block';tipT=performance.now()+1800;return;}
+    GAMEDIFF=GAMEDIFF===1?0:1;try{localStorage.setItem('sr_diff',String(GAMEDIFF));}catch(_){}try{tmUI();}catch(_){}sync();};
+  try{const v=parseInt(localStorage.getItem('sr_diff'));if(v===0||v===1)GAMEDIFF=v;}catch(_){}
+  setInterval(sync,200);sync();
 })();
 </script>
 </body>
