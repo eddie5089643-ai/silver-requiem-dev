@@ -3235,7 +3235,9 @@ let WP=null;const WCAM={x:0,y:0};
 const SIDE={time:.74,fires:[],ui:null,dlg:null,toast:'',toastT:0,lock:0,regName:'',regT:0,shots:[],atmo:[]};
 // 職業武器：建立角色時只拿到自己職業的武器
 const CLS_WEAPONS={melee:['katana'],ranged:['gun','bow'],magic:[],support:[],rogue:[]};
-function ownedW(){const c=typeof curChar==='function'?curChar():null;if(c){if(!c.weapons)c.weapons=(CLS_WEAPONS[c.cls]||['katana']).slice();return c.weapons.length?c.weapons:['katana'];}return (CLS_WEAPONS[PCLS]||['katana']).slice();}
+function ownedW(){const c=typeof curChar==='function'?curChar():null;let L;if(c){if(!c.weapons)c.weapons=(CLS_WEAPONS[c.cls]||['katana']).slice();L=c.weapons.length?c.weapons:['katana'];}else L=(CLS_WEAPONS[PCLS]||['katana']).slice();
+  if(typeof inArena==='function'&&inArena()&&!L.includes('katana'))L=[...L,'katana']; // 測試版：戰鬥場裡一定有太刀
+  return L;}
 const W_INFO={katana:['sword','⚔','太刀'],gun:['gun','▬','手槍'],bow:['bow','➶','弓']};
 function curWorldMeta(){return typeof curW==='function'?curW():null;}
 function worldEnter(back){const meta=curWorldMeta();if(!meta){toTitle();return;}buildSideArt();
@@ -3416,7 +3418,7 @@ function invClose(){INV.open=false;const r=document.getElementById('invRoot');if
 #invRoot .body{flex:1;overflow:auto}
 #invRoot .hint{text-align:center;font-size:11.5px;color:#8a88a0;margin-top:8px;letter-spacing:.1em}
 .bagwrap{display:flex;gap:18px;height:100%}.bagwrap .me{width:170px;flex:none;border:1px solid #3a3850;background:#0e0d16;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
-.bagwrap .me canvas{image-rendering:pixelated;width:150px;height:180px}.bagwrap .me b{letter-spacing:.15em}.bagwrap .me small{color:#a8a6c0}
+.bagwrap .me canvas{image-rendering:pixelated;width:120px;height:144px}.look{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;font-size:11px;color:#a8a6c0;padding:0 6px}.look div{width:100%;text-align:center;margin-top:4px;letter-spacing:.2em}.look button{padding:3px 6px;border:1px solid #6a6880;background:#15141f;color:#fff;font:11px "Noto Serif TC",serif;border-radius:3px;cursor:pointer}.look button.sel{background:#e8e8f2;color:#111}.look button:disabled{opacity:.4;cursor:not-allowed}.bagwrap .me b{letter-spacing:.15em}.bagwrap .me small{color:#a8a6c0}
 .grid{display:grid;grid-template-columns:repeat(6,58px);grid-auto-rows:58px;gap:6px;align-content:start}
 .slot{border:1px solid #4a4860;background:#12111a;position:relative;display:flex;align-items:center;justify-content:center;font-size:24px;color:#cfcfdc;cursor:pointer}
 .slot.eq{border-color:#fff;box-shadow:0 0 10px rgba(210,200,255,.35)}.slot small{position:absolute;bottom:2px;left:0;right:0;text-align:center;font-size:10px;color:#a8a6c0}.slot i{position:absolute;top:2px;left:4px;font-style:normal;font-size:10px;color:#8a88a0}
@@ -3433,10 +3435,13 @@ function invClose(){INV.open=false;const r=document.getElementById('invRoot');if
   addEventListener('keydown',e=>{if(state==='world'&&INV.open&&e.key==='Escape'){invClose();e.stopImmediatePropagation();}},true);})();
 function invUI(){const r=document.getElementById('invRoot');if(!r)return;r.style.display=INV.open?'block':'none';if(!INV.open)return;
   for(const b of r.querySelectorAll('.tabs button'))b.classList.toggle('sel',b.dataset.t===INV.tab);const B=document.getElementById('invBody'),ch=typeof curChar==='function'?curChar():null;
-  if(INV.tab==='bag'){const items=ownedW().map(w=>[w,W_INFO[w][1],W_INFO[w][2]]);let h='<div class="bagwrap"><div class="me"><canvas id="invMe" width="60" height="72"></canvas><b>'+(ch?esc(ch.name):'')+'</b><small>'+tr(CLS_NAME[PCLS]||'')+'　·　'+tr((OUTFITS[(inArena()?P:WP).outfit]||{}).name||'')+'</small></div><div class="grid">';
+  if(INV.tab==='bag'){const items=ownedW().map(w=>[w,W_INFO[w][1],W_INFO[w][2]]);let h='<div class="bagwrap"><div class="me"><canvas id="invMe" width="60" height="72"></canvas><b>'+(ch?esc(ch.name):'')+'</b><div class="look" id="invLook"></div><small>'+tr(CLS_NAME[PCLS]||'')+'　·　'+tr((OUTFITS[(inArena()?P:WP).outfit]||{}).name||'')+'</small></div><div class="grid">';
     const PL=inArena()?P:WP;for(let i=0;i<30;i++){const it=items[i];h+=it?'<div class="slot'+(PL.weapon===it[0]?' eq':'')+'" data-w="'+it[0]+'"><i>'+(i+1)+'</i>'+it[1]+'<small>'+it[2]+'</small></div>':'<div class="slot"></div>';}
     B.innerHTML=h+'</div></div>';for(const s of B.querySelectorAll('.slot[data-w]'))s.onclick=()=>{(inArena()?P:WP).weapon=s.dataset.w;SFX.swap();invUI();};
-    const c=document.getElementById('invMe'),x=c.getContext('2d');x.imageSmoothingEnabled=false;const PQ=inArena()?P:WP,rg=outfitRig(PQ.outfit||'adventurer'),q=Object.assign({},PQ,{vx:0,sw:null,onG:true,face:1,rx:0,ry:0});q.hair=makeChain(9,0,-30);for(let i=0;i<40;i++)stepChain(q.hair,-2,-33,3.3*PS,.22,.86,0);
+    {const L=document.getElementById('invLook'),co=curOutfit(),chh=curHair();let hh='<div>服裝</div>'+Object.keys(OUTFITS).map(k=>{const ok=outfitOK(k);return '<button data-o="'+k+'" class="'+(k===co?'sel':'')+'" '+(ok?'':'disabled title="'+OUTFITS[k].lock+'"')+'>'+(ok?'':'🔒')+OUTFITS[k].name+'</button>';}).join('');
+      const sh=has('hair.short');hh+='<div>髮型</div><button data-h="long" class="'+(chh==='long'?'sel':'')+'">白色長髮</button><button data-h="short" class="'+(chh==='short'?'sel':'')+'" '+(sh?'':'disabled title="打敗鏡中銀影解鎖"')+'>'+(sh?'':'🔒')+'短髮</button>';L.innerHTML=hh;
+      for(const b of L.querySelectorAll('button[data-o]'))b.onclick=()=>{SAVE.outfit=b.dataset.o;saveGame();setLook();invUI();};for(const b of L.querySelectorAll('button[data-h]'))b.onclick=()=>{SAVE.hair=b.dataset.h;saveGame();setLook();invUI();};}
+    const c=document.getElementById('invMe'),x=c.getContext('2d');x.imageSmoothingEnabled=false;const PQ=inArena()?P:WP,rg=outfitRig(PQ.outfit||'adventurer'),q=Object.assign({},PQ,{vx:0,sw:null,onG:true,face:1,rx:0,ry:0});q.hair=makeChain(curHair()==='short'?4:9,0,-30);for(let i=0;i<40;i++)stepChain(q.hair,-2,-33,3.3*PS,.22,.86,0);
     const out=rg.render(z=>drawPlayerRig(z,q,PQ.pal||OUTFITS.adventurer.pal));x.drawImage(out,rg.ox-30,rg.oy-66,60,72,0,0,60,72);}
   else if(INV.tab==='tree'){B.innerHTML='<div class="tree">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.filter(n=>n!=='（待定）').map(n=>'<div class="node">🔒<b>'+n+'</b><small>打敗後解鎖・招式待設計</small></div>').join('')+'</div>').join('')+'</div>';}
   else{let i=0;const ar=inArena();B.innerHTML='<div class="arenabar"><span>戰鬥場：鏡中銀影的地圖（目前沒有 Boss，可自由練習）</span><button id="arenaBtn">'+(ar?'退出戰鬥場':'進入戰鬥場')+'</button></div><div class="bl">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.map(n=>'<div class="brow"><i>'+String(++i).padStart(2,'0')+'</i><span>'+n+'</span><button disabled>尚未製作</button></div>').join('')+'</div>').join('')+'</div>';document.getElementById('arenaBtn').onclick=()=>{inArena()?arenaExit():arenaEnter();};}
@@ -3480,7 +3485,8 @@ function makeArena(){const b=baseBoss({kind:'arena',name:'Arena',cn:'戰鬥場',
 BOSSES.push(makeArena);const ARENA_I=BOSSES.length-1;
 {const _sf=startFight;startFight=function(i){_sf(i);if(boss&&boss.kind==='arena'){mirror=null;boss.dormant=true;boss.hidden=true;boss.x=-99999;introT=0;}};}
 function inArena(){return state==='fight'&&boss&&boss.kind==='arena';}
-function arenaEnter(){if(state!=='world')return;sideSave();saveGame();invClose();TOWN.inFight=true;startFight(ARENA_I);}
+function arenaEnter(){if(state!=='world')return;let n=0;for(const u of UNLOCKS){if((u.kind==='服裝'||u.kind==='髮型')&&!has(u.id)){SAVE.unlocked=Object.assign(SAVE.unlocked||{},{[u.id]:1});n++;}}
+  sideSave();saveGame();invClose();TOWN.inFight=true;startFight(ARENA_I);if(n){pop(P.x+P.w/2,P.y-14,'測試版：已解鎖所有外觀','#ffe9a8',true);}}
 function arenaExit(){invClose();TOWN.inFight=false;worldEnter(true);}
 addEventListener('keydown',e=>{if(e.key==='Tab'&&(inArena()||(state==='dead'&&boss&&boss.kind==='arena'))){e.preventDefault();invToggle();}});
 
@@ -3499,6 +3505,9 @@ addEventListener('keydown',e=>{if(e.key==='Tab'&&(inArena()||(state==='dead'&&bo
   $('wpMv').oninput=e=>setVol(e.target.value/100);$('wpSv').oninput=e=>setSfxVol(e.target.value/100);})();
 function wPause(on){SIDE.paused=!!on;const r=document.getElementById('wPause');if(!r)return;r.style.display=on?'block':'none';
   if(on){try{document.getElementById('wpMv').value=Math.round((music.on?musicVol:0)*100);document.getElementById('wpSv').value=Math.round(sfxVol*100);}catch(e){}for(const k in keys)keys[k]=false;mouse.l=false;}}
+
+// 背包裡換外觀：立即套用到目前的角色（主世界或戰鬥場）
+function setLook(){const p=inArena()?P:WP;if(!p)return;p.outfit=curOutfit();p.pal=OUTFITS[p.outfit].pal;p.hair=makeChain(9,p.x+p.w/2,p.y);applyHair(p);}
 </script>
 <script>
 // =====================================================================
