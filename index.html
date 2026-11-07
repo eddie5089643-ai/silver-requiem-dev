@@ -571,9 +571,6 @@ const OUTFITS={adventurer:{name:'冒險者服裝',pal:PC_ADV},gothic:{name:'銀�
 const UNLOCKS=[
   {id:'outfit.gothic',kind:'服裝',name:'銀刃禮裙',by:['empire1','mirror'],cond:'打敗帝國前期 Boss（demo：打敗鏡中銀影也可）'},
   {id:'hair.short',kind:'髮型',name:'短髮',by:['mirror'],cond:'打敗鏡中銀影'},
-  {id:'move.dash2',kind:'招式',name:'二段閃避',by:['mirror'],cond:'打敗鏡中銀影',desc:'冷卻中可以再閃避一次'},
-  {id:'move.slide',kind:'招式',name:'滑步斬',by:['slime'],cond:'打敗史萊姆首領',desc:'地面按 S＋攻擊'},
-  {id:'move.plunge',kind:'招式',name:'下劈',by:['goblin'],cond:'打敗哥布林首領',desc:'空中按 S＋攻擊'},
   {id:'hair.pony',kind:'髮型',name:'馬尾',by:['wolf'],cond:'打敗狼族人首領（開發中）'},
 ];
 const BOSS_KEY=['mirror','slime','goblin'];
@@ -2333,7 +2330,7 @@ let SAVE={beaten:{},mat:0},winMat=0,winUnl=[];try{SAVE=JSON.parse(localStorage.g
 try{if(SAVE.cls==='melee'||SAVE.cls==='ranged')PCLS=SAVE.cls;}catch(e){}
 function saveGame(){try{localStorage.setItem('silverRequiem2',JSON.stringify(SAVE));}catch(e){}}
 function handleInput(){
-  if(pressed['m']&&state!=='world')toggleMusic();
+  if(pressed['m'])toggleMusic();
   if(state==='title')titleInput();
   else if(state==='fight'){if(paused){const vr=volRectP(),m_=window.__m;if(m_.l&&(m_.lp?volHit(vr,m_.x,m_.y):window.__volDrag)){window.__volDrag=true;setVol((m_.x-vr.x)/vr.w);}if(!m_.l)window.__volDrag=false;}if((pressed['escape']||pressed['p'])&&!MP.on)paused=!paused;if(MP.on)paused=false;if(paused&&pressed['t']){paused=false;toTitle();}}
   else if(state==='dead'){if(endT>40&&(pressed['r']||pressed['enter']))startFight(bossSel);if(pressed['escape'])(TOWN.inFight?townEnter:toTitle)();}
@@ -2796,7 +2793,7 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
 #mpPanel button:hover{background:#2a2840!important}#mpPanel button.sel{background:#e8e8f2!important;color:#111!important}
 </style>
 <div class="tlogo"><div class="zh">銀刃安魂曲</div><div class="en">Silver Requiem</div><div class="orn">❦ ✦ ❦</div></div>
-<div id="tItems"><button id="tSingle">單人模式</button><button id="tMulti">多人模式</button><button id="tMusic">音樂欣賞</button><button id="tSettings">設定</button></div>
+<div id="tItems"><button id="tSingle">單人模式</button><button id="tMulti" style="opacity:.4">多人模式（重製中）</button><button id="tMusic">音樂欣賞</button><button id="tSettings">設定</button></div>
 <div id="tSet" class="lace"><h2>設定</h2>
   <div class="r"><label>音樂音量</label><input id="tMv" type="range" min="0" max="100"><span class="n" id="tMvN"></span></div>
   <div class="r"><label>音效音量</label><input id="tSv" type="range" min="0" max="100"><span class="n" id="tSvN"></span></div>
@@ -2834,7 +2831,7 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
   <button class="back" id="tBossBack">返回</button></div>`;
   document.body.appendChild(root);const $=id=>document.getElementById(id);
   $('tSingle').onclick=()=>tmSingle();
-  $('tMulti').onclick=()=>{try{audioInit();}catch(e){}MP.open=true;mpUI();tmUI();};
+  $('tMulti').onclick=()=>{};
   {const TRK=[['主選單','Main Menu'],['第一階段','Phase I'],['第二階段','Phase II'],['第三階段','Phase III'],['第四階段','Phase IV'],['最終謝幕','Final Curtain']],L=$('tMusList');
     const fmt=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
     TRK.forEach((n,i)=>{const b=document.createElement('button');b.className='tr';b.dataset.i=i;b.innerHTML='<i>'+String(i+1).padStart(2,'0')+'</i><span>'+n[0]+'</span><small>'+n[1]+'</small>';b.onclick=()=>{try{audioInit();smpLoad();}catch(e){}if(!smpPlayAt(i,0)){$('tMusName').textContent=tr('載入中…');SMP.prev=i;}};L.appendChild(b);});
@@ -3093,689 +3090,357 @@ function drawTownUI(){
     if(d.t>=d.lines[d.i].length&&frameN%40<26)T('▼',W-80,H-36,6,'#cfcfdc');}
 }
 </script>
+
+
 <script>
 // =====================================================================
-//  方塊世界（泰拉瑞亞式）：世界生成、晝夜、可破壞地形（10 分鐘復原）、主鎮、NPC 住屋、小怪
+//  橫版 2D 卷軸世界（重做版）：野外營地開局 → 原野 → 主鎮 → 東方荒野
+//  美術：全部用整數像素矩形繪製（不反鋸齒），和玩家角色同一種像素風
 // =====================================================================
-const TS=5; // 一格 5px（像素方塊縮小 3 倍）
-const WORLD_SEED='銀刃安魂曲-主世界'; // 固定世界：不再隨機生成，每個世界地形都一樣
-// 方塊：0 空氣 1 泥土 2 草地 3 石頭 4 木板 5 石磚 6 屋瓦 7 木樑
-const SOLID=[0,1,1,1,1,1,1,1,1,1],BREAK=[0,1,1,1,0,0,0,0,0,0];
-// 8 石板瓦 9 基石；背景牆 6 石塊牆 8 木門 9 鐵柵
-// 背景牆：0 無 1 泥土牆 2 石牆 3 灰泥牆 4 木框牆 5 玻璃窗
-let WORLD=null;
+let WORLD=null; // 相容舊程式（角色／世界列表會參照）
 function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 function hashSeed(s){let h=2166136261;s=String(s);for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
 function vnoise1(seed){const r=mulberry(seed),N=512,v=new Float32Array(N);for(let i=0;i<N;i++)v[i]=r()*2-1;
   return x=>{const i=Math.floor(x),f=x-i,a=v[((i%N)+N)%N],b=v[(((i+1)%N)+N)%N],t=f*f*(3-2*f);return a+(b-a)*t;};}
-function vnoise2(seed){const r=mulberry(seed),N=256,v=new Float32Array(N*N);for(let i=0;i<N*N;i++)v[i]=r();
-  const at=(x,y)=>v[(((y%N)+N)%N)*N+(((x%N)+N)%N)];
-  return (x,y)=>{const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy,sx=fx*fx*(3-2*fx),sy=fy*fy*(3-2*fy);
-    const a=at(ix,iy),b=at(ix+1,iy),c=at(ix,iy+1),d=at(ix+1,iy+1);return (a+(b-a)*sx)+((c+(d-c)*sx)-(a+(b-a)*sx))*sy;};}
-
-function genWorld(meta){
-  const w=meta.w||1600,h=meta.h||600,seed=hashSeed(WORLD_SEED),R=mulberry(seed);
-  const tiles=new Uint8Array(w*h),walls=new Uint8Array(w*h),surf=new Int16Array(w);
-  const n1=vnoise1(seed+1),n2=vnoise1(seed+2),cave=vnoise2(seed+3),cave2=vnoise2(seed+4);
-  const base=Math.round(h*.33),tc=Math.round(w*.5),tHalf=205;
-  for(let x=0;x<w;x++){let s=base+n1(x/270)*50+n2(x/78)*14;
-    if(x<w*.38)s+=n2(x/40)*8; // 西方森林：起伏較多
-    const d=Math.abs(x-tc);if(d<tHalf+190){const k=Math.min(1,Math.max(0,(d-tHalf-30)/160));s=base*(1-k)+s*k*1;} // 主鎮整平
-    surf[x]=Math.round(s);}
-  // 史萊姆首領的巢穴：西方森林裡一塊較平坦的林間空地
-  {const lx=Math.round(w*.26);let av=0;for(let x=lx-45;x<=lx+45;x++)av+=surf[x];av/=91;for(let x=lx-80;x<=lx+80;x++){const k=Math.min(1,Math.max(0,(Math.abs(x-lx)-45)/35));surf[x]=Math.round(av*(1-k)+surf[x]*k);}}
-  for(let x=0;x<w;x++){const s=surf[x],stoneY=s+50+Math.round(n2(x/120)*16);
-    for(let y=s;y<h;y++){const i=y*w+x;tiles[i]=y===s?2:y<stoneY?1:3;walls[i]=y<stoneY?1:2;}}
-  // 洞穴
-  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const s=surf[x];if(y<s+30||y>h-6)continue;
-    const v=cave(x/100,y/60)*.65+cave2(x/36,y/27)*.35,th=.66-Math.min(.08,(y-s)/2700);
-    if(v>th&&Math.abs(x-tc)>tHalf+30)tiles[y*w+x]=0;}
-  // 洞穴口
-  for(const cx of [Math.round(w*.18),Math.round(w*.82)]){for(let y=surf[cx]-1;y<surf[cx]+120;y++)for(let dx=-6;dx<=6;dx++){const x=cx+dx+Math.round(Math.sin(y/18)*9);if(x>0&&x<w)tiles[y*w+x]=0;}}
-  for(let x=0;x<w;x++)for(let y=h-3;y<h;y++)tiles[y*w+x]=3;
-  for(let x=0;x<w;x++)for(let y=1;y<h;y++){const i=y*w+x;if(tiles[i]===1&&tiles[i-w]===0&&walls[i-w]===0)tiles[i]=2;}
-  // ---- 中世紀主鎮（參考半木構造：石砌一樓、木框二樓外挑、陡屋頂、老虎窗、煙囪、圓塔、城門樓）----
-  const ty=base,town={x0:tc-tHalf,x1:tc+tHalf,y:ty,houses:[],gates:[],chim:[]};
-  for(let x=town.x0-14;x<=town.x1+14;x++){tiles[ty*w+x]=5;tiles[(ty+1)*w+x]=5;for(let y=ty-130;y<ty;y++){tiles[y*w+x]=0;walls[y*w+x]=0;}}
-  const set=(x,y,t)=>{if(x>=0&&x<w&&y>=0&&y<h)tiles[y*w+x]=t;},setW=(x,y,t)=>{if(x>=0&&x<w&&y>=0&&y<h)walls[y*w+x]=t;};
-  const roof=(a,b,yb,t,max=99)=>{let k=0;for(;a+k<=b-k&&k<max;k++)for(let x=a+k;x<=b-k;x++)set(x,yb-k,t);return yb-k+1;};
-  const window_=(x,y,ww,hh,wins)=>{const mi=Math.floor(ww/2),mj=Math.floor(hh/2);for(let j=0;j<hh;j++)for(let i=0;i<ww;i++)setW(x+i,y+j,(i===0||j===0||i===ww-1||j===hh-1||(ww>=7&&i===mi)||(hh>=7&&j===mj))?4:5);wins.push([x+ww/2,y+hh/2]);};
-  const door=(x,y0)=>{for(let j=0;j<8;j++)for(let i=0;i<5;i++){if(j===0&&(i===0||i===4))continue;setW(x+i,y0-8+j,8);}};
-  const tower=(x0,hgt,wins)=>{const top=ty-hgt;for(let y=top;y<ty;y++){for(let x=x0+1;x<x0+8;x++)setW(x,y,6);set(x0,y,5);set(x0+8,y,5);}
-    for(let x=x0;x<=x0+8;x++)set(x,top,5);window_(x0+3,top+4,3,5,wins);window_(x0+3,top+14,3,5,wins);
-    for(let y=ty-9;y<ty;y++){set(x0,y,0);set(x0+8,y,0);}
-    roof(x0-2,x0+10,top-1,8);for(let k=0;k<4;k++)set(x0+4,top-8-k,5);};
-  function house(x0,wd,kind){const x1=x0+wd-1,wins=[],gf=10,uf=kind==='cottage'?0:10,j=kind==='cottage'?0:2,slate=kind==='cottage'||kind==='shop';
-    // 一樓：石砌
-    for(let x=x0;x<=x1;x++)for(let y=ty-gf;y<ty;y++)setW(x,y,6);
-    for(const x of [x0,x0+1,x1-1,x1])for(let y=ty-gf;y<ty-8;y++)set(x,y,9);
-    door(x0+Math.floor(wd/2)-2,ty);window_(x0+3,ty-gf+2,5,5,wins);window_(x1-7,ty-gf+2,5,5,wins);
-    let top=ty-gf;
-    if(uf){ // 二樓：木框外挑
-      const a=x0-j,b=x1+j;for(let x=a;x<=b;x++)set(x,ty-gf-1,4);
-      top=ty-gf-1-uf;
-      const pw=9,np=Math.max(1,Math.round((b-a)/pw)),stp=(b-a)/np;
-      for(let x=a;x<=b;x++)for(let y=top;y<ty-gf-1;y++){const ly=y-top;setW(x,y,(ly===0||ly===uf-1)?4:3);}
-      for(let k=0;k<=np;k++){const px=Math.round(a+k*stp);for(let y=top;y<ty-gf-1;y++)setW(px,y,4);}
-      for(let k=0;k<np;k++){const p0=Math.round(a+k*stp),p1=Math.round(a+(k+1)*stp),pwk=p1-p0;
-        if(k%2===(np%2?0:1)||pwk<8){for(let i=1;i<pwk;i++){const yy=top+1+Math.round(i*(uf-3)/(pwk-1));setW(p0+i,yy,4);setW(p0+i,top+uf-2-(yy-top-1),4);}}
-        else window_(p0+1,top+1,pwk-1,uf-2,wins);}
-      for(let y=top;y<ty-gf-1;y++){set(a,y,7);set(b,y,7);}
-      top-=1;for(let x=a;x<=b;x++)set(x,top,4);
-    }
-    const ra=x0-j-3,rb=x1+j+3,rt=roof(ra,rb,top-1,slate?8:6);
-    // 老虎窗
-    if(wd>=22&&uf){const dx=Math.floor((ra+rb)/2)-3,dy=top-7;for(let y=dy-1;y<top;y++)for(let x=dx;x<dx+7;x++)set(x,y,0);window_(dx+1,dy,5,6,wins);for(let x=dx;x<dx+7;x++)setW(x,dy+5,4);roof(dx-1,dx+7,dy-1,slate?8:6);}
-    // 煙囪
-    const cxm=x1-4;for(let y=rt-4;y<top-2;y++){set(cxm,y,5);set(cxm+1,y,5);set(cxm+2,y,5);}town.chim.push([(cxm+1.5)*TS,(rt-4)*TS]);
-    const hs={x0,x1,top:ty-gf,kind,wins};town.houses.push(hs);return hs;}
-  function church(x0,wd){const x1=x0+wd-1,wins=[],hg=22,top=ty-hg;
-    for(let x=x0;x<=x1;x++)for(let y=top;y<ty;y++)setW(x,y,6);
-    for(const x of [x0,x0+1,x1-1,x1])for(let y=top;y<ty-9;y++)set(x,y,9);for(let x=x0;x<=x1;x++){set(x,top,9);set(x,top+1,9);}
-    for(let x=x0+5;x+4<=x1-4;x+=9){for(let y=top+5;y<top+16;y++)for(let i=0;i<4;i++)setW(x+i,y,(i===0||i===3||y===top+15)?6:5);wins.push([x+2,top+10]);setW(x+1,top+4,5);setW(x+2,top+4,5);}
-    door(x0+Math.floor(wd/2)-2,ty);
-    roof(x0-3,x1+3,top-1,8);
-    const cx=x0+4,tt=top-40;for(let y=tt;y<top;y++){for(let x=cx;x<cx+10;x++)setW(x,y,6);set(cx-1,y,5);set(cx+10,y,5);}
-    for(let x=cx-1;x<=cx+10;x++)set(x,tt,5);window_(cx+3,tt+5,4,7,wins);window_(cx+3,tt+18,4,7,wins);
-    roof(cx-3,cx+12,tt-1,8);for(let k=0;k<6;k++)set(cx+4,tt-9-k,5);set(cx+5,tt-9-3,5);set(cx+3,tt-9-3,5);
-    town.houses.push({x0,x1,top,kind:'church',wins});}
-  function gate(gx){const a=gx-12,b=gx+12,top=ty-30,wins=[];
-    for(let x=a;x<=b;x++)for(let y=top;y<ty;y++){const ax=Math.abs(x-gx),inArch=ax<=5&&(y>ty-12||(y>ty-16&&ax*ax+(y-(ty-12))*(y-(ty-12))*1.6<30));
-      if(inArch){set(x,y,0);setW(x,y,y<ty-11?9:2);}else{set(x,y,9);}}
-    for(let x=a-1;x<=b+1;x++)set(x,top,5);for(let x=a;x<=b;x+=3)set(x,top-1,5),set(x,top-2,5);
-    // 門樓上的木框屋
-    for(let x=a+3;x<=b-3;x++)for(let y=top-11;y<top-1;y++){const lx=x-a-3;setW(x,y,(lx%6===0||y===top-11)?4:3);}
-    for(let y=top-11;y<top-1;y++){set(a+3,y,7);set(b-3,y,7);}window_(gx-6,top-9,5,6,wins);window_(gx+2,top-9,5,6,wins);
-    roof(a+1,b-1,top-12,6);
-    // 兩側小塔
-    for(const tx of [a-4,b+1]){for(let y=top-6;y<ty;y++)for(let x=tx;x<tx+4;x++)set(x,y,5);roof(tx-2,tx+5,top-7,8);}
-    for(let x=a-4;x<=b+4;x++)for(let y=ty;y<Math.max(ty+2,surf[x]+2);y++){set(x,y,9);}
-    town.gates.push({x:gx*TS,y:ty*TS});town.houses.push({x0:a,x1:b,top,kind:'gate',wins});}
-  house(tc-180,22,'home');house(tc-142,20,'cottage');house(tc-106,24,'shop');tower(tc-82,34,town.houses[town.houses.length-1].wins);
-  church(tc-40,52);house(tc+30,24,'home');house(tc+70,20,'cottage');house(tc+106,26,'home');tower(tc+132,30,town.houses[town.houses.length-1].wins);house(tc+156,22,'home');
-  gate(town.x0-12);gate(town.x1+12);
-  // ---- 裝飾 ----
-  const deco=[];
-  for(let x=10;x<w-10;x+=Math.round(12+R()*18)){const d=Math.abs(x-tc);if(d<tHalf+40)continue;if(x>w*.38&&R()<.6)continue;if(Math.abs(x-w*.26)<34)continue;
-    const s=surf[x];if(tiles[s*w+x]!==2||tiles[(s-1)*w+x]!==0)continue;deco.push({type:'tree',x:x*TS+2,y:s*TS,h:x<w*.38?11+Math.round(R()*9):6+Math.round(R()*6),v:(R()*3)|0});}
-  for(const lx of [-160,-124,-64,-48,20,58,96,148,184])deco.push({type:'lamp',x:(tc+lx)*TS+2,y:ty*TS});if(0)for(let x=0;x<0;x++)deco.push({type:'lamp',x:x*TS+2,y:ty*TS});
-  deco.push({type:'fountain',x:(tc-61)*TS,y:ty*TS});for(const [x,y] of town.chim)deco.push({type:'smoke',x,y});
-  // ---- Boss 祭壇 ----
-  const alt=(x,bi,label,need)=>{const s=surf[x];for(let dx=-9;dx<=9;dx++){set(x+dx,s,5);set(x+dx,s+1,5);for(let y=s-24;y<s;y++)set(x+dx,y,0);}return {x:x*TS+2,y:s*TS,bi,label,need};};
-  const lair={x:Math.round(w*.26)*TS,y:surf[Math.round(w*.26)]*TS};
-  for(let x=12;x<w-12;x+=2+Math.round(R()*4)){if(Math.abs(x-tc)<tHalf+30)continue;const s=surf[x];if(tiles[s*w+x]!==2||tiles[(s-1)*w+x]!==0)continue;deco.push({type:'grass',x:x*TS,y:s*TS,v:(R()*4)|0,h:3+((R()*5)|0)});}
-  const altars=[alt(Math.round(w*.08),2,'哥布林首領',q=>(q.m1||0)>=2),alt(Math.round(w*.92),0,'鏡中銀影',q=>true)];
-  const spawn={x:(tc-56)*TS,y:(ty-10)*TS};
-  return {meta,w,h,tiles,walls,surf,town,deco,altars,spawn,lair,chunks:new Map(),broken:[],time:.3,mobs:[],shots:[],npcs:[]};
+const SW={len:12600,base:330,regions:[
+  {id:'forest',name:'西方森林',x0:0,x1:3000},
+  {id:'camp',name:'林間營地',x0:3000,x1:4300},
+  {id:'meadow',name:'原野小路',x0:4300,x1:6600},
+  {id:'town',name:'主鎮',x0:6600,x1:9600},
+  {id:'east',name:'東方荒野',x0:9600,x1:12600}]};
+const CAMP_X=3650,TOWN_X0=6600,TOWN_X1=9600;
+// ---------- 像素繪圖工具（全部整數座標） ----------
+const PX={
+  r(x,X,Y,w,h,c){x.fillStyle=c;x.fillRect(Math.round(X),Math.round(Y),Math.round(w),Math.round(h));},
+  line(x,x0,y0,x1,y1,c,t=1){x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);y1=Math.round(y1);x.fillStyle=c;const dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let e=dx+dy;
+    for(;;){x.fillRect(x0,y0,t,t);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>=dy){e+=dy;x0+=sx;}if(e2<=dx){e+=dx;y0+=sy;}}},
+  disc(x,cx,cy,r,c){x.fillStyle=c;const R2=r*r;for(let j=-r;j<=r;j++){const w=Math.floor(Math.sqrt(Math.max(0,R2-j*j)));x.fillRect(Math.round(cx-w),Math.round(cy+j),w*2+1,1);}},
+  tri(x,ax,ay,bx,by,cx_,cy_,c){x.fillStyle=c;const pts=[[ax,ay],[bx,by],[cx_,cy_]].sort((a,b)=>a[1]-b[1]);const [p0,p1,p2]=pts;const ix=(a,b,y)=>a[1]===b[1]?a[0]:a[0]+(b[0]-a[0])*(y-a[1])/(b[1]-a[1]);
+    for(let y=Math.ceil(p0[1]);y<=Math.floor(p2[1]);y++){const xa=ix(p0,p2,y),xb=y<p1[1]?ix(p0,p1,y):ix(p1,p2,y);const l=Math.round(Math.min(xa,xb)),r=Math.round(Math.max(xa,xb));x.fillRect(l,y,r-l+1,1);}},
+  outline(cv,col){const x=cv.getContext('2d'),w=cv.width,h=cv.height,id=x.getImageData(0,0,w,h),d=id.data,a=new Uint8Array(w*h);for(let i=0;i<w*h;i++)a[i]=d[i*4+3]>100?1:0;
+    const [r,g_,b]=[parseInt(col.slice(1,3),16),parseInt(col.slice(3,5),16),parseInt(col.slice(5,7),16)];
+    for(let y=0;y<h;y++)for(let X=0;X<w;X++){const i=y*w+X;if(a[i])continue;if((X>0&&a[i-1])||(X<w-1&&a[i+1])||(y>0&&a[i-w])||(y<h-1&&a[i+w])){d[i*4]=r;d[i*4+1]=g_;d[i*4+2]=b;d[i*4+3]=255;}}
+    for(let i=0;i<w*h;i++)if(a[i])d[i*4+3]=255;x.putImageData(id,0,0);return cv;}};
+const hash=(n)=>{n=(n^61)^(n>>>16);n=n+(n<<3);n=n^(n>>>4);n=Math.imul(n,0x27d4eb2d);n=n^(n>>>15);return (n>>>0)/4294967296;};
+// ---------- 地形：平滑起伏的地面（沒有方塊、沒有洞窟） ----------
+const SN1=vnoise1(hashSeed('sr-side-1')),SN2=vnoise1(hashSeed('sr-side-2'));
+function groundY(x){x=clamp(x,0,SW.len);let h=SN1(x/900)*46+SN2(x/260)*12;
+  const flat=(a,b,m=260)=>{const d=x<a?a-x:x>b?x-b:0;return d>=m?1:d/m;};
+  const k=Math.min(flat(CAMP_X-260,CAMP_X+340),flat(TOWN_X0+80,TOWN_X1-80,320));h*=k;if(x<2900)h+=Math.sin(x/170)*6*k;return Math.round(SW.base+h);}
+function regionAt(x){return SW.regions.find(r=>x>=r.x0&&x<r.x1)||SW.regions[SW.regions.length-1];}
+// ---------- 美術生成 ----------
+const SA={};
+function buildSideArt(){if(SA.ok)return;SA.ok=true;
+  // 地面長條：草地／泥土／石子；主鎮是石板路，營地是踩實的泥地
+  const GH=220,G=mk(SW.len,GH),gx=G.getContext('2d');SA.ground=G;SA.gTop=SW.base-70;const ID=gx.createImageData(SW.len,GH),DD=ID.data,CC={};
+  const put=(x,y,c)=>{if(y<0||y>=GH)return;let v=CC[c];if(!v)v=CC[c]=[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)];const i=(y*SW.len+x)*4;DD[i]=v[0];DD[i+1]=v[1];DD[i+2]=v[2];DD[i+3]=255;};
+  for(let x=0;x<SW.len;x++){const gy=groundY(x)-SA.gTop,reg=regionAt(x).id,town=x>TOWN_X0+60&&x<TOWN_X1-60,camp=Math.abs(x-CAMP_X)<220;
+    for(let y=gy;y<GH;y++){const dpt=y-gy,hh=hash(x*7919+y*104729);let c;
+      if(town&&dpt<8){c=(Math.floor(x/9)+Math.floor(dpt/4))%2?'#6c665c':'#7a7468';if(x%9===0||dpt%4===0)c='#4e4a42';}
+      else if(dpt<3&&!town){c=camp?(hh<.5?'#6a5238':'#5e4830'):(reg==='east'?(hh<.5?'#7a7a3a':'#6a6a30'):(hh<.6?'#4f8a3a':'#5a9a40'));}
+      else if(dpt<5&&!town)c=camp?'#4e3a26':(reg==='east'?'#5a5228':'#3a6a2e');
+      else{c=dpt<40?(hh<.06?'#6a5240':hh<.5?'#4a3426':'#523a2a'):(hh<.05?'#5a5a62':hh<.5?'#3a2c22':'#34281e');if(dpt>60&&hh<.01)c='#6e6e78';}
+      put(x,y,c);}
+    if(!town&&!camp&&hash(x*31)<.35){const th=2+Math.floor(hash(x*17)*5),c=hash(x*13)<.5?'#5aa848':'#3e7a2e';for(let k=1;k<=th;k++)put(x,gy-k,c);}}
+  gx.putImageData(ID,0,0);
+  // 森林樹：多種變體，三階明暗＋外框
+  SA.trees=[];for(let v=0;v<6;v++){const big=v>=3,tw=big?150:90,th=big?300:190,c=mk(tw,th),x=c.getContext('2d'),R=mulberry(500+v);
+    const trunkW=big?20:11,tx0=tw/2-trunkW/2;PX.r(x,tx0,th*.35,trunkW,th*.65,'#3e2c20');PX.r(x,tx0,th*.35,3,th*.65,'#56402c');PX.r(x,tx0+trunkW-3,th*.35,3,th*.65,'#2c1e16');
+    for(let k=0;k<6;k++)PX.r(x,tx0+2+((R()*(trunkW-4))|0),th*.4+R()*th*.5,2,4+R()*8,'#2c1e16');
+    PX.r(x,tx0-6,th-6,trunkW+12,6,'#3e2c20');PX.r(x,tx0-3,th-10,trunkW+6,4,'#3e2c20');
+    const cols=v%2?['#24402c','#2e5236','#3e6a44']:['#2a4a2a','#365e32','#4a7a3e'];
+    for(let k=0;k<(big?26:16);k++){const cx_=tw/2+(R()-.5)*tw*.75,cy_=th*.12+R()*th*.3,r=(big?14:10)+R()*(big?14:8);PX.disc(x,cx_,cy_,r,cols[0]);PX.disc(x,cx_-2,cy_-2,r-3,cols[1]);PX.disc(x,cx_-4,cy_-4,Math.max(1,r-8),cols[2]);}
+    if(big)for(let k=0;k<5;k++){const vx=tw/2+(R()-.5)*tw*.6;for(let y=th*.25;y<th*.25+30+R()*50;y++)PX.r(x,vx+Math.round(Math.sin(y/7)*2),y,1,1,'#2e5236');}
+    SA.trees.push(PX.outline(c,'#0e1610'));}
+  // 草叢、岩石、蕨類
+  SA.bush=[];for(let v=0;v<3;v++){const c=mk(40,22),x=c.getContext('2d'),R=mulberry(600+v);for(let k=0;k<7;k++){const cx_=8+R()*24,cy_=12+R()*6,r=5+R()*5;PX.disc(x,cx_,cy_,r,'#2e5236');PX.disc(x,cx_-1,cy_-2,r-2,'#3e6a44');}PX.r(x,0,20,40,2,'rgba(0,0,0,0)');SA.bush.push(PX.outline(c,'#0e1610'));}
+  SA.rock=[];for(let v=0;v<2;v++){const c=mk(30,18),x=c.getContext('2d');PX.disc(x,15,14,10,'#5c5c66');PX.disc(x,13,12,7,'#72727c');PX.r(x,8,9,3,1,'#8a8a94');PX.r(x,0,16,30,2,'#5c5c66');SA.rock.push(PX.outline(c,'#141418'));}
+  // 帳篷（營地）
+  {const c=mk(96,64),x=c.getContext('2d');PX.tri(x,48,4,4,62,92,62,'#8a7450');PX.tri(x,48,4,10,62,48,62,'#a48a5e');for(let y=10;y<62;y+=6)PX.line(x,48-(y-4)*.75,y,48+(y-4)*.75,y,'#76623e');
+    PX.tri(x,48,22,34,62,62,62,'#1a140e');PX.tri(x,48,22,40,62,48,62,'#2a2016');PX.line(x,48,22,34,62,'#c8b088');PX.r(x,47,0,2,8,'#4a3424');
+    PX.line(x,4,62,0,63,'#3a2c20');PX.line(x,92,62,95,63,'#3a2c20');SA.tent=PX.outline(c,'#100c08');}
+  // 營火木頭、圓木椅、鍋、提燈
+  {const c=mk(40,14),x=c.getContext('2d');for(let i=0;i<7;i++)PX.disc(x,4+i*5.3,10,3,i%2?'#6a6a72':'#56565e');PX.line(x,8,9,32,5,'#4a3424',3);PX.line(x,8,5,32,9,'#5a4030',3);SA.fire=PX.outline(c,'#120e0a');}
+  {const c=mk(44,12),x=c.getContext('2d');PX.r(x,2,2,40,9,'#5a4030');PX.r(x,2,2,40,2,'#7a5a40');PX.disc(x,3,6,4,'#8a6a48');PX.disc(x,3,6,2,'#6a5038');SA.log=PX.outline(c,'#120e0a');}
+  {const c=mk(28,12),x=c.getContext('2d');PX.r(x,1,4,26,8,'#7a2a26');PX.r(x,1,4,26,2,'#9a3a32');PX.r(x,20,3,7,9,'#d8ccb0');SA.bedroll=PX.outline(c,'#120a08');}
+  {const c=mk(12,40),x=c.getContext('2d');PX.r(x,5,8,2,32,'#4a3424');PX.r(x,2,6,8,2,'#2a2a30');PX.r(x,3,8,6,7,'#2a2a30');PX.r(x,4,9,4,5,'#ffd080');SA.lantern=PX.outline(c,'#0a0a0c');}
+  {const c=mk(30,22),x=c.getContext('2d');PX.r(x,1,2,28,20,'#6a4a2c');PX.r(x,1,2,28,2,'#8a6a40');PX.r(x,1,11,28,1,'#4a3220');PX.r(x,14,2,1,20,'#4a3220');SA.crate=PX.outline(c,'#120c06');}
+  // 主鎮建築（半木構造、石砌一樓、陡屋頂、老虎窗、煙囪）
+  SA.houses=[];const H=(w,kind,v)=>{const R=mulberry(700+v),gf=34,uf=kind==='cottage'?0:32,roofH=Math.round(w*.62),Hh=gf+uf+roofH+20,c=mk(w+16,Hh),x=c.getContext('2d'),o=8,wins=[],chim=[];
+      const yb=Hh;// 一樓石砌
+      PX.r(x,o,yb-gf,w,gf,'#8c8578');for(let y=yb-gf;y<yb;y+=5){const off=((y/5)|0)%2?0:5;for(let X=o-off;X<o+w;X+=10)PX.r(x,Math.max(o,X),y,1,5,'#6a6458');PX.r(x,o,y,w,1,'#6a6458');}
+      PX.r(x,o,yb-gf,w,2,'#5e584e');
+      const dw=14,dx=o+w/2-dw/2;PX.r(x,dx,yb-24,dw,24,'#5a3a22');PX.r(x,dx+2,yb-22,dw-4,22,'#6e4a2c');for(let X=dx+4;X<dx+dw-2;X+=4)PX.r(x,X,yb-22,1,22,'#4a2e18');PX.r(x,dx+dw-5,yb-12,2,2,'#c8a858');PX.disc(x,dx+dw/2,yb-24,dw/2,'#5a3a22');PX.disc(x,dx+dw/2,yb-24,dw/2-2,'#6e4a2c');
+      const win=(X,Y,ww,hh)=>{PX.r(x,X-1,Y-1,ww+2,hh+2,'#3a2616');PX.r(x,X,Y,ww,hh,'#2a3440');PX.r(x,X+ww/2|0,Y,1,hh,'#3a2616');PX.r(x,X,Y+hh/2|0,ww,1,'#3a2616');PX.r(x,X+1,Y+1,2,1,'#4a5a6a');wins.push([X-o+ww/2,Y-yb+hh/2,ww,hh,X-o,Y-yb]);};
+      win(o+6,yb-gf+8,10,11);win(o+w-16,yb-gf+8,10,11);
+      let top=yb-gf;
+      if(uf){const j=4,a=o-j,b=o+w+j;PX.r(x,a,top-3,b-a,3,'#4a2e18');top-=3;
+        PX.r(x,a,top-uf,b-a,uf,'#d8ccae');const n=Math.max(2,Math.round((b-a)/20)),st=(b-a)/n;
+        for(let k=0;k<=n;k++)PX.r(x,a+Math.round(k*st)-1,top-uf,3,uf,'#4a2e18');PX.r(x,a,top-uf,b-a,3,'#4a2e18');PX.r(x,a,top-3,b-a,3,'#4a2e18');
+        for(let k=0;k<n;k++){const p0=a+Math.round(k*st),p1=a+Math.round((k+1)*st);if(k%2===0){PX.line(x,p0+2,top-uf+3,p1-2,top-4,'#4a2e18',2);PX.line(x,p0+2,top-4,p1-2,top-uf+3,'#4a2e18',2);}else win(p0+5,top-uf+8,p1-p0-10,uf-15);}
+        top-=uf;}
+      // 屋頂（瓦片一排排）
+      const ra=o-8,rb=o+w+8,peak=top-roofH,shade=kind==='shop'?['#4a5462','#5a6472','#3e4652']:['#5a3a2e','#6e4a3a','#46302a'];
+      PX.tri(x,(ra+rb)/2,peak,ra,top,rb,top,shade[0]);for(let y=peak+3;y<top;y+=4){const hw=(y-peak)/(top-peak)*(rb-ra)/2;PX.r(x,(ra+rb)/2-hw,y,hw*2,1,shade[2]);for(let X=Math.round((ra+rb)/2-hw)+((y/4|0)%2)*3;X<(ra+rb)/2+hw;X+=6)PX.r(x,X,y-3,1,3,shade[2]);}
+      PX.line(x,(ra+rb)/2,peak,ra,top,shade[1],2);
+      if(w>=70&&uf){const dx2=(ra+rb)/2-9,dy2=top-roofH*.45;PX.r(x,dx2,dy2,18,16,'#d8ccae');PX.r(x,dx2,dy2,18,2,'#4a2e18');win(dx2+4,dy2+4,10,10);PX.tri(x,dx2+9,dy2-11,dx2-3,dy2+1,dx2+21,dy2+1,shade[0]);PX.line(x,dx2+9,dy2-11,dx2-3,dy2+1,shade[1]);}
+      const chx=o+w-22,chy=top-roofH*.55;PX.r(x,chx,chy-16,10,roofH*.55+16-((chx-ra)/(rb-ra)<.5?0:0),'#6c665c');PX.r(x,chx-1,chy-18,12,3,'#5a554c');for(let y=chy-14;y<top;y+=4)PX.r(x,chx,y,10,1,'#57524a');chim.push([chx+5-o,chy-18-yb]);
+      PX.outline(c,'#100c0a');return {c,w,ox:o,h:Hh,wins,chim};};
+  SA.houses=[H(80,'home',1),H(64,'cottage',2),H(92,'shop',3),H(76,'home',4),H(60,'cottage',5),H(88,'home',6)];
+  // 教堂（石砌、長窗、鐘樓尖塔）
+  {const w=120,Hh=230,c=mk(w+20,Hh),x=c.getContext('2d'),o=10,yb=Hh,wins=[];PX.r(x,o,yb-80,w,80,'#8c8578');for(let y=yb-80;y<yb;y+=5){const off=((y/5)|0)%2?0:5;for(let X=o-off;X<o+w;X+=10)PX.r(x,Math.max(o,X),y,1,5,'#6a6458');PX.r(x,o,y,w,1,'#6a6458');}
+    for(let k=0;k<4;k++){const X=o+14+k*26;if(k===2)continue;PX.r(x,X-1,yb-66,12,34,'#3a3630');PX.r(x,X,yb-64,10,32,'#2a3440');PX.disc(x,X+5,yb-64,5,'#2a3440');PX.r(x,X+5,yb-66,1,34,'#3a3630');wins.push([X+5-o,-50,10,30,X-o,-66]);}
+    PX.r(x,o+w/2-9,yb-30,18,30,'#5a3a22');PX.disc(x,o+w/2,yb-30,9,'#5a3a22');PX.r(x,o+w/2-1,yb-36,2,36,'#4a2e18');
+    PX.tri(x,o+w/2,yb-140,o-6,yb-80,o+w+6,yb-80,'#4a5462');for(let y=yb-136;y<yb-80;y+=4){const hw=(y-(yb-140))/60*(w+12)/2;PX.r(x,o+w/2-hw,y,hw*2,1,'#3e4652');}
+    const tx=o+12;PX.r(x,tx,yb-170,26,90,'#7e786c');for(let y=yb-170;y<yb-80;y+=5)PX.r(x,tx,y,26,1,'#6a6458');PX.r(x,tx+8,yb-160,10,16,'#2a2420');PX.disc(x,tx+13,yb-160,5,'#2a2420');PX.disc(x,tx+13,yb-120,6,'#d8d0b8');PX.r(x,tx+13,yb-124,1,4,'#2a2420');PX.r(x,tx+13,yb-120,3,1,'#2a2420');
+    PX.tri(x,tx+13,yb-226,tx-4,yb-170,tx+30,yb-170,'#4a5462');PX.line(x,tx+13,yb-226,tx-4,yb-170,'#5a6472',2);PX.r(x,tx+12,yb-230,2,6,'#c8a858');PX.r(x,tx+10,yb-228,6,1,'#c8a858');
+    PX.outline(c,'#100c0a');SA.church={c,w,ox:o,h:Hh,wins,chim:[]};}
+  // 井、攤位、街燈、告示牌
+  {const c=mk(36,44),x=c.getContext('2d');PX.r(x,4,26,28,18,'#7a7468');for(let y=26;y<44;y+=5)PX.r(x,4,y,28,1,'#5e584e');PX.r(x,6,8,3,18,'#5a3a22');PX.r(x,27,8,3,18,'#5a3a22');PX.tri(x,18,0,0,10,36,10,'#5a3a2e');PX.r(x,16,10,4,10,'#3a2a1c');SA.well=PX.outline(c,'#100c0a');}
+  {const c=mk(56,46),x=c.getContext('2d');PX.r(x,4,14,3,32,'#5a3a22');PX.r(x,49,14,3,32,'#5a3a22');for(let k=0;k<7;k++)PX.r(x,k*8,8,8,8,k%2?'#d8ccae':'#a83a32');PX.r(x,0,14,56,2,'#7a2a26');PX.r(x,6,30,44,4,'#6a4a2c');PX.r(x,10,24,8,6,'#c89a40');PX.r(x,22,25,6,5,'#8a4a30');PX.r(x,34,23,10,7,'#c8b880');SA.stall=PX.outline(c,'#100c0a');}
+  {const c=mk(14,60),x=c.getContext('2d');PX.r(x,6,10,2,50,'#2a2a30');PX.r(x,2,56,10,4,'#2a2a30');PX.r(x,2,4,10,2,'#2a2a30');PX.r(x,3,6,8,8,'#2a2a30');PX.r(x,4,7,6,6,'#ffd080');SA.lamp=PX.outline(c,'#0a0a0c');}
+  {const c=mk(30,30),x=c.getContext('2d');PX.r(x,13,10,3,20,'#4a3424');PX.r(x,2,4,26,12,'#7a5a3a');PX.r(x,2,4,26,2,'#9a7a50');PX.r(x,6,8,18,1,'#4a3424');PX.r(x,6,11,14,1,'#4a3424');SA.sign=PX.outline(c,'#100c08');}
+  // 背景層（像素化剪影，依區域）
+  const strip=(w,h,fn)=>{const c=mk(w,h),x=c.getContext('2d');fn(x,w,h);return c;};
+  const ridge=(x,w,h,col,base,amp,f,seed)=>{const n=vnoise1(seed),fn=X=>Math.abs(n(X/f))*amp+n(X/(f/3)+9)*amp*.25,ys=[];for(let X=0;X<w;X++){const t=X/w,y=Math.round(base-((1-t)*fn(X)+t*fn(X-w)));ys.push(y);PX.r(x,X,y,1,h-y,col);}return ys;};
+  SA.bg={
+    forest:[strip(1200,300,(x,w,h)=>{ridge(x,w,h,'#3a4e56',230,60,160,41);}),
+            strip(1200,320,(x,w,h)=>{const R=mulberry(42);for(let i=20;i<w;i+=90+((R()*60)|0)){const tw=18+R()*22;PX.r(x,i,0,tw,h,'#2c3e40');PX.r(x,i+2,0,2,h,'#34484a');for(let k=0;k<8;k++)PX.disc(x,i+tw/2+(R()-.5)*120,R()*70,20+R()*24,'#283a3a');}}),
+            strip(1200,320,(x,w,h)=>{const R=mulberry(43);for(let i=0;i<w;i+=130+((R()*80)|0)){const tw=30+R()*26;PX.r(x,i,0,tw,h,'#1a2624');PX.r(x,i+3,0,3,h,'#22302e');PX.tri(x,i-24,h,i+tw/2,h-60,i+tw+24,h,'#1a2624');for(let k=0;k<4;k++){const vx=i+R()*tw;for(let y=0;y<60+R()*90;y++)PX.r(x,vx+Math.round(Math.sin(y/9)*2),y,1,1,'#22302e');}}})],
+    camp:null,
+    meadow:[strip(1200,300,(x,w,h)=>{const ys=ridge(x,w,h,'#7d8eab',210,110,220,51);ys.forEach((y,X)=>{if(y<140)PX.r(x,X,y,1,Math.max(1,(140-y)*.3),'#dfe6f0');});}),
+            strip(1200,300,(x,w,h)=>{ridge(x,w,h,'#5c7a64',250,40,260,52);const R=mulberry(53);for(let i=0;i<w;i+=24+((R()*40)|0)){const y=250-30-R()*10;PX.disc(x,i,y,8+R()*8,'#4e6a56');PX.r(x,i-1,y,2,30,'#4e6a56');}}),
+            strip(1200,300,(x,w,h)=>{ridge(x,w,h,'#3f5a46',282,22,200,54);})],
+    town:[strip(1200,300,(x,w,h)=>{ridge(x,w,h,'#8a90a8',230,30,300,61);const cx_=600,by=214;PX.r(x,cx_-130,by-46,260,46,'#7a7f96');for(let k=-130;k<130;k+=10)PX.r(x,cx_+k,by-52,6,6,'#7a7f96');
+              for(const [dx,hh,ww] of [[-130,86,24],[-60,116,28],[0,160,38],[64,104,28],[126,80,22]]){PX.r(x,cx_+dx-ww/2,by-hh,ww,hh,'#7a7f96');PX.tri(x,cx_+dx,by-hh-ww*1.3,cx_+dx-ww/2-4,by-hh,cx_+dx+ww/2+4,by-hh,'#6e7388');PX.r(x,cx_+dx,by-hh-ww*1.3-10,1,10,'#6e7388');}}),
+          strip(1200,300,(x,w,h)=>{const R=mulberry(62);PX.r(x,0,250,w,50,'#4e5466');for(let i=0;i<w;){const ww=36+((R()*46)|0),hh=30+((R()*50)|0),by=252;PX.r(x,i,by-hh,ww,hh,'#4e5466');PX.tri(x,i+ww/2,by-hh-ww*.65,i-5,by-hh,i+ww+5,by-hh,'#4e5466');if(R()<.6)PX.r(x,i+ww*.7,by-hh-ww*.5,5,18,'#4e5466');if(R()<.15){PX.r(x,i+ww/2-7,by-hh-64,14,64,'#4e5466');PX.tri(x,i+ww/2,by-hh-100,i+ww/2-10,by-hh-64,i+ww/2+10,by-hh-64,'#4e5466');}i+=ww+3+((R()*14)|0);}})],
+    east:[strip(1200,300,(x,w,h)=>{ridge(x,w,h,'#8a7a78',220,90,140,71);}),
+          strip(1200,300,(x,w,h)=>{ridge(x,w,h,'#6a5a54',250,50,90,72);const R=mulberry(73);for(let k=0;k<3;k++){const tx=200+k*380+R()*80;PX.r(x,tx,90,16,170,'#5a4a46');PX.tri(x,tx+8,60,tx-6,92,tx+22,92,'#5a4a46');PX.r(x,tx+6,110,4,6,'#c86a40');}}),
+          strip(1200,300,(x,w,h)=>{ridge(x,w,h,'#4a3c36',284,20,70,74);})]};
+  SA.bg.camp=SA.bg.forest;
+  // 場景物件擺放
+  const D=SA.deco=[],R=mulberry(900);
+  for(let x=40;x<SW.len-40;){const reg=regionAt(x).id;const nearCamp=Math.abs(x-CAMP_X)<260,inTown=x>TOWN_X0-40&&x<TOWN_X1+40;
+    if(!nearCamp&&!inTown){if(reg==='forest'||reg==='camp'){D.push({k:'tree',x,v:3+((R()*3)|0),z:0});x+=60+R()*90;continue;}
+      if(reg==='meadow'&&R()<.35){D.push({k:'tree',x,v:(R()*3)|0,z:0});x+=200+R()*260;continue;}
+      if(reg==='east'&&R()<.3){D.push({k:'rock',x,v:(R()*2)|0});x+=120+R()*200;continue;}}
+    if(!inTown&&!nearCamp&&R()<.5)D.push({k:R()<.7?'bush':'rock',x,v:(R()*3)|0});x+=50+R()*90;}
+  D.push({k:'tent',x:CAMP_X-90},{k:'bedroll',x:CAMP_X-40},{k:'fire',x:CAMP_X+20},{k:'log',x:CAMP_X+64},{k:'lantern',x:CAMP_X-130},{k:'crate',x:CAMP_X-150},{k:'sign',x:CAMP_X+260,text:'→ 原野小路・主鎮'});
+  // 主鎮配置
+  let hx=TOWN_X0+160;const order=[0,1,2,'well',3,'church',4,'stall',5];for(const it of order){if(it==='well'){D.push({k:'well',x:hx+20});hx+=90;continue;}if(it==='stall'){D.push({k:'stall',x:hx+30});hx+=110;continue;}
+    const s=it==='church'?SA.church:SA.houses[it];D.push({k:'house',x:hx,s});hx+=s.w+70;}
+  for(let x=TOWN_X0+120;x<TOWN_X1-100;x+=230)D.push({k:'lamp',x});
+  D.push({k:'sign',x:TOWN_X0+40,text:'主鎮'},{k:'sign',x:TOWN_X1-40,text:'東方荒野 →'});
+  D.sort((a,b)=>(a.k==='house'?0:1)-(b.k==='house'?0:1));
 }
-const wIdx=(x,y)=>y*WORLD.w+x;
-function wTile(x,y){if(x<0||x>=WORLD.w)return 3;if(y<0)return 0;if(y>=WORLD.h)return 3;return WORLD.tiles[y*WORLD.w+x];}
-const wSolid=(x,y)=>SOLID[wTile(x,y)]===1;
-function wSetTile(x,y,t){if(x<0||y<0||x>=WORLD.w||y>=WORLD.h)return;WORLD.tiles[y*WORLD.w+x]=t;if(WORLD.mapX){const c=mapCol(x,y);WORLD.mapX.fillStyle=c;WORLD.mapX.fillRect(x,y,1,1);}WORLD.chunks.delete(((x>>5)<<16)|(y>>5));
-  if((x&31)===0)WORLD.chunks.delete((((x-1)>>5)<<16)|(y>>5));if((x&31)===31)WORLD.chunks.delete((((x+1)>>5)<<16)|(y>>5));
-  if((y&31)===0)WORLD.chunks.delete(((x>>5)<<16)|((y-1)>>5));if((y&31)===31)WORLD.chunks.delete(((x>>5)<<16)|((y+1)>>5));}
-function wBreak(x,y){const t=wTile(x,y);if(!BREAK[t])return false;WORLD.broken.push({x,y,t,at:performance.now()});wSetTile(x,y,0);
-  const col=t===3?'#8a8a94':t===2?'#5aa040':'#7a5a3a';if(Math.random()<.5)part(x*TS+2,y*TS+2,2,col,1.6,18,1);return true;}
-
-// ---- 方塊材質（程式生成的像素材質） ----
-const TEX={};
-function buildTex(){
-  const R=mulberry(99);const mkT=(fn)=>{const out=[];for(let v=0;v<4;v++){const c=mk(TS,TS),x=c.getContext('2d');fn(x,v);out.push(c);}return out;};
-  const px=(x,c,i,j,w=1,h=1)=>{x.fillStyle=c;x.fillRect(i,j,w,h);};
-  const speck=(x,base,cols,n)=>{px(x,base,0,0,TS,TS);for(let k=0;k<n;k++)px(x,cols[(R()*cols.length)|0],(R()*TS)|0,(R()*TS)|0);};
-  TEX[1]=mkT(x=>speck(x,'#6b4a30',['#5a3d27','#7c5838','#4a3220'],4));
-  TEX[2]=mkT(x=>{speck(x,'#6b4a30',['#5a3d27','#7c5838'],3);px(x,'#4f9a38',0,0,TS,2);for(let i=0;i<TS;i++)if(R()<.5)px(x,'#6ac04a',i,0);px(x,'#3a7a2a',0,2,TS,1);});
-  TEX[3]=mkT(x=>speck(x,'#6e6e78',['#5c5c66','#82828c','#50505a'],5));
-  TEX[4]=mkT(x=>{px(x,'#8a6036',0,0,TS,TS);px(x,'#a07444',0,0,TS,1);px(x,'#6a4626',0,TS-1,TS,1);if(R()<.5)px(x,'#5a3a1e',(R()*TS)|0,2);});
-  TEX[5]=mkT((x,v)=>{px(x,'#7a7a86',0,0,TS,TS);px(x,'#9090a0',0,0,TS,1);px(x,'#55555f',0,TS-1,TS,1);if(v&1)px(x,'#55555f',0,0,1,TS);if(R()<.4)px(x,'#6a6a76',1+((R()*3)|0),2);});
-  TEX[6]=mkT((x,v)=>{px(x,'#8a3a2e',0,0,TS,TS);px(x,'#6a2a22',0,TS-1,TS,1);px(x,'#a84a3a',v&1?0:2,0,3,1);});
-  TEX[7]=mkT(x=>{px(x,'#5a3a22',0,0,TS,TS);px(x,'#6e4a2c',1,0,1,TS);px(x,'#4a2e18',3,0,1,TS);});
-  TEX[8]=mkT((x,v)=>{px(x,'#5a6472',0,0,TS,TS);px(x,'#3e4652',0,TS-1,TS,1);px(x,'#727e8c',v&1?0:2,0,3,1);if(v&2)px(x,'#4c5460',(v&1)?3:1,2);});
-  TEX[9]=mkT((x,v)=>{px(x,'#8c8578',0,0,TS,TS);px(x,'#a49c8e',0,0,TS,1);px(x,'#5e584e',0,TS-1,TS,1);if(v&1)px(x,'#5e584e',0,0,1,TS);if(R()<.5)px(x,'#7a7366',1+((R()*3)|0),1+((R()*3)|0));});
-  const WT={};
-  WT[1]=mkT(x=>speck(x,'#3a2a1c',['#33251a','#44301f'],3));
-  WT[2]=mkT(x=>speck(x,'#3c3c44',['#34343c','#46464e'],3));
-  WT[3]=mkT(x=>speck(x,'#c8b890',['#bcac84','#d4c49c'],2));
-  WT[4]=mkT(x=>{px(x,'#5a3a22',0,0,TS,TS);px(x,'#6e4a2c',0,0,TS,1);});
-  WT[5]=mkT((x,v)=>{px(x,'#8eaec6',0,0,TS,TS);if(v===0)px(x,'#c8dcec',1,1,2,1);});
-  WT[6]=mkT((x,v)=>{px(x,'#9e978a',0,0,TS,TS);px(x,'#7a7468',0,TS-1,TS,1);if(v&1)px(x,'#7a7468',0,0,1,TS);if(R()<.6)px(x,'#b0a99a',1+((R()*3)|0),1);if(R()<.4)px(x,'#8a8478',2,2+((R()*2)|0));});
-  WT[8]=mkT((x,v)=>{px(x,'#6a4426',0,0,TS,TS);px(x,'#4e301a',v&1?1:3,0,1,TS);if(v&2)px(x,'#3a3a40',0,2,TS,1);});
-  WT[9]=mkT(x=>{px(x,'#16161c',0,0,TS,TS);px(x,'#3a3a44',2,0,1,TS);px(x,'#3a3a44',0,2,TS,1);});
-  TEX.walls=WT;
-}
-function chunkCanvas(cx,cy){const key=(cx<<16)|cy;let c=WORLD.chunks.get(key);if(c)return c;
-  if(WORLD.chunks.size>160)WORLD.chunks.clear();
-  c=mk(32*TS,32*TS);const x=c.getContext('2d'),W_=WORLD.w;
-  for(let j=0;j<32;j++)for(let i=0;i<32;i++){const tx=cx*32+i,ty=cy*32+j;if(tx>=W_||ty>=WORLD.h)continue;const idx=ty*W_+tx,t=WORLD.tiles[idx],wl=WORLD.walls[idx],v=t===5||t===6||t===8||t===9?((tx+(ty&1))&1)+((ty>>1)&1)*2:(tx*7+ty*13)&3,vw=wl===6||wl===8?((tx+(ty&1))&1)+((ty>>1)&1)*2:v;
-    if(wl&&(!t||!SOLID[t])){x.drawImage(TEX.walls[wl][vw],i*TS,j*TS);if(wl<3){x.fillStyle='rgba(0,0,0,.35)';x.fillRect(i*TS,j*TS,TS,TS);}}
-    if(t){x.drawImage(TEX[t][v],i*TS,j*TS);
-      const up=wTile(tx,ty-1),dn=wTile(tx,ty+1),lf=wTile(tx-1,ty),rt=wTile(tx+1,ty);
-      if(!SOLID[up]&&t!==2){x.fillStyle='rgba(255,255,255,.16)';x.fillRect(i*TS,j*TS,TS,1);}
-      if(!SOLID[dn]){x.fillStyle='rgba(0,0,0,.35)';x.fillRect(i*TS,j*TS+TS-1,TS,1);}
-      if(!SOLID[lf]){x.fillStyle='rgba(0,0,0,.22)';x.fillRect(i*TS,j*TS,1,TS);}
-      if(!SOLID[rt]){x.fillStyle='rgba(0,0,0,.22)';x.fillRect(i*TS+TS-1,j*TS,1,TS);}}}
-  WORLD.chunks.set(key,c);return c;}
-const TREES=[];
-function buildTrees(){for(let v=0;v<3;v++){const c=mk(64,140),x=c.getContext('2d'),R=mulberry(40+v);
-  x.fillStyle='#4a3220';x.fillRect(28,40,8,100);x.fillStyle='#5e4028';x.fillRect(30,40,3,100);
-  const cols=[['#2e6a2a','#3e8a34','#559e44'],['#2a5e3a','#3a7a4a','#4c9058'],['#3a6a22','#4e8a2c','#66a43a']][v];
-  for(let k=0;k<26;k++){const cx=32+(R()-.5)*44,cy=30+(R()-.5)*36,r=9+R()*9;x.fillStyle=cols[(R()*3)|0];x.beginPath();x.arc(cx,cy,r,0,TAU);x.fill();}
-  TREES.push(c);}}
-
-// ---- 晝夜：一整天 12 分鐘（白天 8 分、夜晚 4 分） ----
-const DAY_FRAMES=12*60*60;
-function dayInfo(){const t=WORLD.time;const sunUp=t>.2&&t<.8;const k=sunUp?Math.sin((t-.2)/.6*Math.PI):0;
-  const night=1-Math.min(1,Math.max(0,(Math.sin((t-.2)/.6*Math.PI)+.15)*2.2));return {t,sunUp,k,night:Math.max(0,Math.min(1,night))};}
-function clockStr(){const m=Math.floor(WORLD.time*24*60),h=Math.floor(m/60)%24,mm=m%60;return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0');}
-
-// ---- 進入世界 ----
-let WP=null,WCAM={x:0,y:0};
-function worldEnter(back){
-  const meta=curWorldMeta();if(!meta){toTitle();return;}
-  if(!WORLD||WORLD.meta.id!==meta.id){if(!TEX[1])buildTex();if(!TREES.length)buildTrees();WORLD=genWorld(meta);worldNpcs();mapBuild(meta);}
-  const p=newPlayer();p.outfit=curOutfit();p.pal=OUTFITS[p.outfit].pal;p.w=10;p.h=36;
-  const sp=back&&WORLD.backPos?WORLD.backPos:WORLD.spawn;p.x=sp.x;p.y=sp.y;p.vx=0;p.vy=0;p.face=1;p.sheathed=true;
-  p.hair=makeChain(9,p.x,p.y);applyHair(p);p.wdead=0;WP=p;WORLD.dlg=null;WORLD.lock=20;
-  WCAM.x=p.x-W/2;WCAM.y=p.y-H/2;state='world';boss=null;paused=false;setMusic('title',-1);try{tmUI();}catch(e){}
-  if(!(SAVE.quests||{}).m1){WORLD.toast='找到主鎮的村長，靠近按 E 對話';WORLD.toastT=360;}
-}
+// ---------- 進入世界 ----------
+let WP=null;const WCAM={x:0,y:0};
+const SIDE={time:.74,fires:[],ui:null,dlg:null,toast:'',toastT:0,lock:0,regName:'',regT:0,shots:[],atmo:[]};
+function curWorldMeta(){return typeof curW==='function'?curW():null;}
+function worldEnter(back){const meta=curWorldMeta();if(!meta){toTitle();return;}buildSideArt();
+  const p=newPlayer();p.outfit=curOutfit();p.pal=OUTFITS[p.outfit].pal;p.w=10;p.h=36;const sx=meta.px&&back!==false?meta.px:CAMP_X+50;
+  p.x=sx;p.y=groundY(sx)-p.h;p.vx=p.vy=0;p.face=1;p.sheathed=true;p.onG=true;p.hair=makeChain(9,p.x,p.y);applyHair(p);WP=p;
+  SIDE.time=typeof meta.time==='number'?meta.time:.74;SIDE.dlg=null;SIDE.lock=20;SIDE.regName='';sideNpcs();
+  WCAM.x=p.x-W/2;WCAM.y=groundY(p.x)-372;state='world';boss=null;paused=false;setMusic('title',-1);try{tmUI();}catch(e){}
+  if(!(SAVE.quests||{}).m1){SIDE.toast='在營地醒來。往東走就是主鎮，去找村長談談';SIDE.toastT=420;}}
 townEnter=function(){worldEnter(true);};
-function worldNpcs(){const H_=WORLD.town.houses.filter(h=>h.kind!=='church'),ty=WORLD.town.y;
-  WORLD.npcs=NPCS.map((n,i)=>{const hs=H_[[3,2,4][i]%H_.length]||H_[0];const home=(hs.x0+hs.x1)/2*TS;
-    return {n,home,hs,x:home,y:ty*TS,vx:0,face:1,t:i*97,o:Object.assign({},n.o||{face:1,vx:0,vy:0,onG:true,runPh:0,hair:makeChain(9,home,ty*TS-36),rx:home,ry:ty*TS,sheathed:true,sw:null,parryT:0,weapon:'katana',gunLA:0,recoil:0,handL:[0,0],laNow:0,bladeW:0,bladeL:44,sheatheT:0,male:n.male}),b:{x:home-5,y:ty*TS-36,w:10,h:36,vx:0,vy:0,onG:true},st:'idle',tm:60+i*40};});
-  for(const q of WORLD.npcs){q.o.noWeapon=true;q.o.sheathed=true;}}
-
-// ---- 玩家在方塊世界的移動（AABB 對方塊碰撞，可自動爬上 1 格） ----
-function boxHits(x,y,w,h){const x0=Math.floor(x/TS),x1=Math.floor((x+w-1)/TS),y0=Math.floor(y/TS),y1=Math.floor((y+h-1)/TS);
-  for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++)if(wSolid(tx,ty))return true;return false;}
-function moveBody(e,stepUp){
-  if(e.vx){const nx=e.x+e.vx;if(!boxHits(nx,e.y,e.w,e.h))e.x=nx;
-    else if(stepUp&&e.onG&&[1,2,3].some(k=>!boxHits(nx,e.y-k*TS,e.w,e.h)&&(e._k=k))){e.x=nx;e.y-=e._k*TS;}
-    else{const s=Math.sign(e.vx);while(!boxHits(e.x+s,e.y,e.w,e.h))e.x+=s;e.vx=0;e.hitWall=true;}}
-  e.onG=false;const ny=e.y+e.vy;
-  if(!boxHits(e.x,ny,e.w,e.h))e.y=ny;
-  else{const s=Math.sign(e.vy);while(!boxHits(e.x,e.y+s,e.w,e.h))e.y+=s;if(e.vy>0)e.onG=true;e.vy=0;}
-  e.x=clamp(e.x,TS*2,WORLD.w*TS-TS*2-e.w);}
-function worldNear(){const p=WP,px=p.x+p.w/2,py=p.y+p.h;let best=null,bd=40;
-  for(const q of WORLD.npcs){const d=Math.hypot(q.x-px,q.y-py);if(d<bd){bd=d;best={kind:'npc',q};}}
-  for(const a of WORLD.altars){const d=Math.hypot(a.x-px,a.y-py);if(d<56){bd=d;best={kind:'altar',a};}}return best;}
-
-function worldUpdate(){
-  frameN++;const p=WP,info=dayInfo();WORLD.time=(WORLD.time+1/DAY_FRAMES)%1;
-  if(WORLD.lock>0)WORLD.lock--;
-  const ok=(pressed['e']||pressed['enter'])&&!(WORLD.lock>0);
-  // 地形復原：10 分鐘
-  if(frameN%60===0&&WORLD.broken.length){const now=performance.now(),keep=[];for(const b of WORLD.broken){if(now-b.at>=600000&&!boxHits(p.x,p.y,p.w,p.h)&&wTile(b.x,b.y)===0){wSetTile(b.x,b.y,b.t);}else keep.push(b);}WORLD.broken=keep;}
-  if(p.wdead>0){p.wdead--;if(p.wdead===0){p.hp=p.mhp;p.x=WORLD.spawn.x;p.y=WORLD.spawn.y;p.vx=p.vy=0;p.iframes=120;}worldCam();return;}
-  // 世界地圖（M）
-  const MP_=WORLD.map||(WORLD.map={open:false,z:0,cx:0,cy:0});
-  if(pressed['m']){MP_.open=!MP_.open;if(MP_.open){MP_.z=Math.min((W-40)/WORLD.w,(H-70)/WORLD.h);MP_.cx=WORLD.w/2;MP_.cy=WORLD.h/2;MP_.lx=null;}SFX.swap();}
-  if(MP_.open){if(pressed['escape'])MP_.open=false;
-    if(mouse.l){if(MP_.lx!=null){MP_.cx-=(mouse.x-MP_.lx)/MP_.z;MP_.cy-=(mouse.y-MP_.ly)/MP_.z;}MP_.lx=mouse.x;MP_.ly=mouse.y;}else MP_.lx=null;
-    MP_.cx=clamp(MP_.cx,0,WORLD.w);MP_.cy=clamp(MP_.cy,0,WORLD.h);p.vx*=.7;}
-  else{
-    if(pressed['escape']){if(WORLD.dlg){WORLD.dlg=null;}else{toTitle();return;}}
-    worldDlgStep(ok);
+function sideSave(){const m=curWorldMeta();if(m&&WP){m.px=Math.round(WP.x);m.time=SIDE.time;}}
+{const _tt=toTitle;toTitle=function(){if(state==='world'){sideSave();saveGame();invClose();}_tt();};}
+// ---------- NPC（主鎮） ----------
+function sideNpcs(){const hs=SA.deco.filter(d=>d.k==='house');const homes=[hs[2],hs[4],hs[6]].map(h=>h?h.x+h.s.w/2:TOWN_X0+400);
+  SIDE.npcs=NPCS.map((n,i)=>{const home=homes[i%homes.length];return {n,home,x:home,vx:0,st:'idle',tm:60+i*50,t:i*97,o:{face:1,vx:0,vy:0,onG:true,runPh:0,hair:makeChain(9,home,groundY(home)-36),rx:home,ry:groundY(home),sheathed:true,sw:null,parryT:0,weapon:'katana',gunLA:0,recoil:0,handL:[0,0],laNow:0,bladeW:0,bladeL:44,sheatheT:0,male:n.male,noWeapon:true}};});}
+function sideNpcStep(night){for(const q of SIDE.npcs){q.t++;const o=q.o,talking=SIDE.dlg&&SIDE.dlg.q===q;let want=0;
+    if(talking){q.st='talk';o.face=Math.sign(WP.x-q.x)||o.face;}
+    else if(q.st==='talk'){q.st='idle';q.tm=90;}
+    else if(night&&q.st!=='home'){q.st='walk';q.tx=q.home;q.spd=.9;if(Math.abs(q.home-q.x)<6)q.st='home';}
+    else if(q.st==='home'){if(!night){q.st='idle';q.tm=60;}}
+    else if(q.st==='idle'){if(--q.tm<=0){if(Math.random()<.62){q.st='walk';q.tx=clamp(q.home+(Math.random()*2-1)*360,TOWN_X0+120,TOWN_X1-120);q.spd=.55+Math.random()*.45;}else q.tm=80+Math.random()*220;}else if(q.tm%110===0&&Math.random()<.4)o.face*=-1;}
+    if(q.st==='walk'){const dx=q.tx-q.x;want=Math.abs(dx)<4?0:Math.sign(dx)*q.spd;if(!want){q.st=night?'home':'idle';q.tm=70+Math.random()*200;}}
+    q.vx=lerp(q.vx,want,.15);if(Math.abs(q.vx)<.03)q.vx=0;q.x+=q.vx;if(q.vx&&!talking)o.face=Math.sign(q.vx);
+    o.vx=q.vx;if(Math.abs(q.vx)>.1)o.runPh+=Math.abs(q.vx)*.2;o.rx=Math.round(q.x);o.ry=groundY(q.x);
+    stepChain(o.hair,q.x-o.face*2.5*PS,o.ry-43*PS,3.3*PS,.22,.86,Math.sin(frameN/34+q.home)*.05-q.vx*.03);}}
+// 對話：文字在 NPC 頭上逐字出現，每兩個字「嘟」一聲
+const BLIP_P={elder:330,merchant:520,guard:260};
+function blip(q){if(!AC)return;tone(AC.currentTime,(BLIP_P[q.n.id]||420)*(1+(Math.random()-.5)*.06),'square',.05,.045);}
+function sideTalk(q){const r=q.n.talk();q.o.face=Math.sign(WP.x-q.x)||1;SIDE.dlg={q,lines:r.lines,i:0,t:0,last:0,done:r.done};SIDE.eat=true;}
+function sideDlgStep(ok){const d=SIDE.dlg;if(!d)return;const line=d.lines[d.i];if(Math.abs(WP.x+WP.w/2-d.q.x)>170){SIDE.dlg=null;return;}
+  if(d.t<line.length){d.t=Math.min(line.length,d.t+.5);const n=Math.floor(d.t);if(n>d.last){for(let k=d.last+1;k<=n;k++)if(k%2===0&&!/[\s，。、！？…「」（）：,.!?]/.test(line[k-1]))blip(d.q);d.last=n;}}
+  if(ok){SIDE.eat=true;if(d.t<line.length){d.t=line.length;d.last=line.length;}else{d.i++;d.t=0;d.last=0;if(d.i>=d.lines.length){const f=d.done;SIDE.dlg=null;if(f)f();}}}}
+function wrapZh(s,n){const out=[];let cur='';for(const ch of s){cur+=ch;if(cur.length>=n&&/[，。、！？…」]/.test(ch)||cur.length>=n+4){out.push(cur);cur='';}}if(cur)out.push(cur);return out;}
+// ---------- 互動目標 ----------
+function sideNear(){const px=WP.x+WP.w/2;let best=null,bd=40;
+  for(const q of SIDE.npcs){const d=Math.abs(q.x-px);if(d<bd){bd=d;best={k:'npc',q,x:q.x,label:q.n.name};}}
+  if(Math.abs(px-(CAMP_X+20))<34)best={k:'fire',x:CAMP_X+20,label:'營火（休息・存檔）'};
+  if(Math.abs(px-(CAMP_X-90))<40)best={k:'tent',x:CAMP_X-90,label:'帳篷（睡到天亮）'};
+  return best;}
+// ---------- 更新 ----------
+const DAY_FRAMES=12*60*60;
+function dayInfo(){const t=SIDE.time,sunUp=t>.2&&t<.8,night=Math.max(0,Math.min(1,1-Math.min(1,Math.max(0,(Math.sin((t-.2)/.6*Math.PI)+.15)*2.2))));return {t,sunUp,night};}
+function duskK(t){return Math.max(0,1-Math.abs(t-.24)*9)+Math.max(0,1-Math.abs(t-.76)*9);}
+function worldUpdate(){frameN++;const p=WP,info=dayInfo();SIDE.time=(SIDE.time+1/DAY_FRAMES)%1;if(SIDE.lock>0)SIDE.lock--;
+  if(pressed['tab']){invToggle();}
+  const invOpen=INV.open;
+  const ok=!invOpen&&(pressed['e']||pressed['enter'])&&!(SIDE.lock>0);
+  if(!invOpen){
+    if(pressed['escape']){if(SIDE.dlg)SIDE.dlg=null;else{toTitle();return;}}
+    sideDlgStep(ok);
     const L_=keys['a']||keys['arrowleft'],R_=keys['d']||keys['arrowright'],ax=(R_?1:0)-(L_?1:0);
     if(p.dashT>0){p.dashT--;p.vx=p.dashDir*8.5;}else{p.vx+=ax*.6;p.vx*=.8;if(Math.abs(p.vx)<.05)p.vx=0;}
-    for(const [k,d] of [['a',-1],['arrowleft',-1],['d',1],['arrowright',1]])if(pressed[k]){if(p.lastTapDir===d&&frameN-p.lastTapT<15&&p.dashCD<=0){p.dashT=12;p.dashDir=d;p.dashCD=50;p.iframes=Math.max(p.iframes,12);SFX.dash();}p.lastTapDir=d;p.lastTapT=frameN;}
+    for(const [k,d] of [['a',-1],['arrowleft',-1],['d',1],['arrowright',1]])if(pressed[k]){if(p.lastTapDir===d&&frameN-p.lastTapT<15&&p.dashCD<=0){p.dashT=12;p.dashDir=d;p.dashCD=50;SFX.dash();}p.lastTapDir=d;p.lastTapT=frameN;}
     if(p.dashCD>0)p.dashCD--;
-    if((pressed[' ']||pressed['w']||pressed['arrowup'])&&p.onG){p.vy=-8.6;}
-    if(!(keys[' ']||keys['w']||keys['arrowup'])&&p.vy<-3)p.vy*=.82; // 放開跳躍鍵就跳得比較低
-    // 武器：1 太刀 2 手槍 3 弓
+    if((pressed[' ']||pressed['w']||pressed['arrowup'])&&p.onG){p.vy=-8.6;p.onG=false;}
+    if(!(keys[' ']||keys['w']||keys['arrowup'])&&p.vy<-3)p.vy*=.82;
     for(const [k,wn] of [['1','katana'],['2','gun'],['3','bow']])if(pressed[k]){p.weapon=wn;SFX.swap();}
     const mw={x:WCAM.x+mouse.x,y:WCAM.y+mouse.y},c={x:p.x+p.w/2,y:p.y+p.h/2-4},aim=Math.atan2(mw.y-c.y,mw.x-c.x);
     if(!p.sw)p.face=Math.cos(aim)>=0?1:-1;p.gunLA=Math.atan2(Math.sin(aim),Math.cos(aim)*p.face);
     if(p.atkCD>0)p.atkCD--;
-    if(mouse.l&&p.atkCD<=0&&!WORLD.uiHover){worldAttack(p,aim,c);}
-    if(ok&&!WORLD.dlg&&!WORLD.dlgEat){const t=worldNear();if(t&&t.kind==='npc')worldTalk(t.q);else if(t&&t.kind==='altar')worldAltar(t.a);}WORLD.dlgEat=false;
-    if(frameN%8===0)fogReveal(p);
-  }
-  if(p.sw){p.sw.t++;const k=Math.min(1,p.sw.t/p.sw.dur);p.swLA=lerp(p.sw.from,p.sw.to,k*k*(3-2*k));p.bladeL=44+20*Math.sin(Math.PI*k);if(p.sw.t>=p.sw.dur){p.sw=null;p.bladeL=44;p.sheatheT=0;}}
-  if(p.recoil>0)p.recoil*=.6;if(p.iframes>0)p.iframes--;
-  p.vy=Math.min(p.vy+.4,11);moveBody(p,true);
+    if(mouse.l&&p.atkCD<=0){if(p.weapon==='katana'){p.sw={t:0,dur:12,from:p.gunLA+2,to:p.gunLA-1.8};p.sheathed=false;p.atkCD=16;SFX.swing(false);}
+      else if(p.weapon==='gun'){p.atkCD=p.cls==='ranged'?6:12;p.recoil=2;SFX.gun();SIDE.shots.push({x:c.x+Math.cos(aim)*14,y:c.y+Math.sin(aim)*14,vx:Math.cos(aim)*14,vy:Math.sin(aim)*14,g:0,life:50});}
+      else{p.atkCD=p.cls==='ranged'?20:30;SFX.swing(false);SIDE.shots.push({x:c.x,y:c.y,vx:Math.cos(aim)*12,vy:Math.sin(aim)*12,g:.14,life:90,arrow:true});}}
+    if(ok&&!SIDE.dlg&&!SIDE.eat){const t=sideNear();if(t&&t.k==='npc')sideTalk(t.q);else if(t&&t.k==='fire'){p.hp=p.mhp;sideSave();saveGame();SIDE.toast='在營火旁休息了一會兒（已存檔）';SIDE.toastT=180;}
+      else if(t&&t.k==='tent'){SIDE.sleep=90;}}
+    SIDE.eat=false;
+  }else{p.vx*=.7;}
+  if(SIDE.sleep>0){SIDE.sleep--;if(SIDE.sleep===45){SIDE.time=.25;p.hp=p.mhp;sideSave();saveGame();}if(SIDE.sleep===0){SIDE.toast='睡到天亮了（已存檔）';SIDE.toastT=180;}}
+  if(p.sw){p.sw.t++;const k=Math.min(1,p.sw.t/p.sw.dur);p.swLA=lerp(p.sw.from,p.sw.to,k*k*(3-2*k));p.bladeL=44+20*Math.sin(Math.PI*k);if(p.sw.t>=p.sw.dur){p.sw=null;p.bladeL=44;}}
+  if(p.recoil>0)p.recoil*=.6;
+  p.vy=Math.min(p.vy+.4,11);p.x=clamp(p.x+p.vx,20,SW.len-30);p.y+=p.vy;const gy=groundY(p.x+p.w/2);
+  if(p.y+p.h>=gy||(p.onG&&p.vy>=0&&p.y+p.h>gy-8)){p.y=gy-p.h;p.vy=0;p.onG=true;}else p.onG=false;
   if(p.onG&&Math.abs(p.vx)>.5)p.runPh+=Math.abs(p.vx)*.13;
   stepChain(p.hair,p.x+p.w/2-p.face*2.5*PS,p.y+p.h-43*PS,3.3*PS,.22,.86,Math.sin(frameN/30)*.04-p.vx*.02);p.rx=Math.round(p.x+p.w/2);p.ry=Math.round(p.y+p.h);
-  worldShots();worldMobs(info);worldNpcStep(info);
+  for(const s of SIDE.shots){s.vy+=s.g;s.x+=s.vx;s.y+=s.vy;s.life--;if(s.y>groundY(s.x)){s.life=0;part(s.x,s.y,4,'#c8b888',1.5,12);}}SIDE.shots=SIDE.shots.filter(s=>s.life>0);
+  sideNpcStep(info.night>.5);
   for(const q of parts){q.x+=q.vx;q.y+=q.vy;q.vy+=q.grav||0;q.vx*=.96;q.vy*=.96;q.life--;}parts=parts.filter(q=>q.life>0);
-  for(const q of pops){q.life--;q.y-=.45;}pops=pops.filter(q=>q.life>0);
-  if(WORLD.toastT>0)WORLD.toastT--;
-  worldCam();
-}
-function worldCam(){const p=WP;WCAM.x=lerp(WCAM.x,clamp(p.x+p.w/2-W/2,0,WORLD.w*TS-W),.14);WCAM.y=lerp(WCAM.y,clamp(p.y+p.h/2-H/2-20,0,WORLD.h*TS-H),.14);}
-function worldAttack(p,aim,c){
-  const wn=p.weapon;
-  if(wn==='katana'){const aimL=p.gunLA;p.sw={t:0,dur:12,from:aimL+2.0,to:aimL-1.8};p.sheathed=false;p.atkCD=16;SFX.swing(false);
-    // 刀光範圍內：打怪、破壞地形
-    const R_=46;for(const m of WORLD.mobs){const d=Math.hypot(m.x+m.w/2-c.x,m.y+m.h/2-c.y),a=Math.atan2(m.y+m.h/2-c.y,m.x+m.w/2-c.x);if(d<R_+m.w/2&&Math.abs(angDiff(a,aim))<1.4)mobHit(m,24,Math.cos(aim)*4);}
-    let broke=0;for(let r=8;r<=44&&broke<40;r+=4)for(let da=-.8;da<=.8&&broke<40;da+=.16){const x=c.x+Math.cos(aim+da)*r,y=c.y+Math.sin(aim+da)*r;if(wBreak(Math.floor(x/TS),Math.floor(y/TS)))broke++;}
-  }else if(wn==='gun'){p.atkCD=p.cls==='ranged'?6:12;p.recoil=2;SFX.gun();WORLD.shots.push({x:c.x+Math.cos(aim)*14,y:c.y+Math.sin(aim)*14,vx:Math.cos(aim)*14,vy:Math.sin(aim)*14,g:0,life:50,dmg:p.cls==='ranged'?14:9});}
-  else{p.atkCD=p.cls==='ranged'?20:30;SFX.swing(false);WORLD.shots.push({x:c.x,y:c.y,vx:Math.cos(aim)*12,vy:Math.sin(aim)*12,g:.14,life:90,dmg:p.cls==='ranged'?26:12,arrow:true});}
-}
-function worldShots(){for(const s of WORLD.shots){s.vy+=s.g;s.x+=s.vx;s.y+=s.vy;s.life--;
-    const tx=Math.floor(s.x/TS),ty=Math.floor(s.y/TS);if(wSolid(tx,ty)){for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++)wBreak(tx+i,ty+j);s.life=0;part(s.x,s.y,4,'#ffffff',1.5,12);continue;}
-    for(const m of WORLD.mobs)if(s.life>0&&s.x>m.x&&s.x<m.x+m.w&&s.y>m.y&&s.y<m.y+m.h){mobHit(m,s.dmg,s.vx*.3);s.life=0;}}
-  WORLD.shots=WORLD.shots.filter(s=>s.life>0);}
-
-// ---- 小怪 ----
-const MOBDEF={
-  slime:{name:'史萊姆',hp:30,dmg:14,w:20,h:14,col:'#4fae4a'},
-  cslime:{name:'混沌史萊姆',hp:55,dmg:22,w:22,h:16,col:'#8a5ad8'},
-  bat:{name:'洞穴蝙蝠',hp:22,dmg:12,w:14,h:10,col:'#6a5a7a',fly:true}};
-function spawnMob(kind,x,y){const d=MOBDEF[kind];WORLD.mobs.push({kind,x,y,w:d.w,h:d.h,vx:0,vy:0,hp:d.hp,mhp:d.hp,t:(Math.random()*100)|0,onG:false,hurt:0,face:1});}
-function mobHit(m,d,kb){m.hp-=d;m.hurt=8;m.vx+=kb;m.vy-=2.5;pop(m.x+m.w/2,m.y-4,d,'#ffffff');part(m.x+m.w/2,m.y+m.h/2,6,MOBDEF[m.kind].col,2,18,1);SFX.hit();
-  if(m.hp<=0){m.dead=true;part(m.x+m.w/2,m.y+m.h/2,18,MOBDEF[m.kind].col,3,26,2);}}
-function worldMobs(info){const p=WP,pcx=p.x+p.w/2,pcy=p.y+p.h/2;
-  // 生成：白天地表史萊姆，夜晚混沌史萊姆，洞穴蝙蝠；主鎮內不生成
-  if(frameN%90===0&&WORLD.mobs.length<10){const side=Math.random()<.5?-1:1,sx=Math.floor((pcx+side*(W/2+60+Math.random()*120))/TS);
-    if(sx>2&&sx<WORLD.w-2&&!(sx>WORLD.town.x0-12&&sx<WORLD.town.x1+12)){const s=WORLD.surf[sx],ty=Math.floor(pcy/TS);
-      if(ty<s+18){spawnMob(info.night>.5?'cslime':'slime',sx*TS,(s-6)*TS);}
-      else{let yy=ty+Math.round((Math.random()-.5)*48);if(!wSolid(sx,yy)&&WORLD.walls[wIdx(sx,clamp(yy,0,WORLD.h-1))])spawnMob('bat',sx*TS,yy*TS);}}}
-  for(const m of WORLD.mobs){const d=MOBDEF[m.kind];m.t++;if(m.hurt>0)m.hurt--;const dx=pcx-(m.x+m.w/2),dy=pcy-(m.y+m.h/2);m.face=Math.sign(dx)||1;
-    if(d.fly){m.vx=lerp(m.vx,Math.sign(dx)*2.2+Math.sin(m.t/9)*1.2,.06);m.vy=lerp(m.vy,Math.sign(dy)*1.6+Math.cos(m.t/7)*1.5,.06);m.x+=m.vx;m.y+=m.vy;if(boxHits(m.x,m.y,m.w,m.h)){m.x-=m.vx*2;m.y-=m.vy*2;m.vx*=-.5;m.vy*=-.5;}}
-    else{m.vy=Math.min(m.vy+.35,10);if(m.onG){m.vx*=.8;if(m.t%(m.kind==='cslime'?55:80)===0&&Math.abs(dx)<520){m.vy=m.kind==='cslime'?-7.5:-6;m.vx=Math.sign(dx)*(m.kind==='cslime'?3.4:2.4);}}
-      moveBody(m,false);}
-    if(Math.abs(dx)>1400||Math.abs(dy)>900)m.dead=true;
-    if(!p.wdead&&p.iframes<=0&&!godMode&&Math.abs(dx)<(m.w+p.w)/2&&Math.abs(dy)<(m.h+p.h)/2){p.hp-=d.dmg;p.iframes=40;p.vx=-Math.sign(dx)*5;p.vy=-4;SFX.hurt&&SFX.hurt();addShake(3);pop(pcx,p.y-6,d.dmg,'#ff6070');
-      if(p.hp<=0){p.hp=0;p.wdead=180;WORLD.toast='你倒下了……將在主鎮重生';WORLD.toastT=170;part(pcx,pcy,40,'#ffffff',3,40,2);}}}
-  WORLD.mobs=WORLD.mobs.filter(m=>!m.dead);}
-
-// ---- NPC：白天在鎮上走動，晚上回家 ----
-function worldNpcStep(info){const T0=WORLD.town,lo=(T0.x0+8)*TS,hi=(T0.x1-8)*TS;
-  for(const q of WORLD.npcs){q.t++;const o=q.o,b=q.b,night=info.night>.5,talking=WORLD.dlg&&WORLD.dlg.q===q;let want=0;
-    if(talking){q.st='talk';o.face=Math.sign(WP.x-q.x)||o.face;}
-    else if(q.st==='talk'){q.st='idle';q.tm=90;}
-    else if(night&&q.st!=='home'){q.st='walk';q.tx=q.home;q.spd=.9;if(Math.abs(q.home-q.x)<6){q.st='home';}}
-    else if(q.st==='home'){if(!night){q.st='idle';q.tm=60;}else if(q.t%400===0)o.face*=-1;}
-    else if(q.st==='idle'){if(--q.tm<=0){if(Math.random()<.62){q.st='walk';q.tx=clamp(q.home+(Math.random()*2-1)*320,lo,hi);q.spd=.55+Math.random()*.45;}else{q.tm=80+Math.random()*220;}}
-      else if(q.tm%110===0&&Math.random()<.4)o.face*=-1;}
-    if(q.st==='walk'){const dx=q.tx-q.x;want=Math.abs(dx)<4?0:Math.sign(dx)*q.spd;if(!want||b.hitWall){q.st=night?'home':'idle';q.tm=70+Math.random()*200;want=0;}}
-    b.hitWall=false;b.vx=lerp(b.vx,want,.15);if(Math.abs(b.vx)<.03)b.vx=0;b.vy=Math.min(b.vy+.4,11);moveBody(b,true);
-    q.x=b.x+b.w/2;q.y=b.y+b.h;if(b.vx&&!talking)o.face=Math.sign(b.vx);
-    o.vx=b.vx;o.onG=b.onG;if(Math.abs(b.vx)>.1)o.runPh+=Math.abs(b.vx)*.2;
-    o.rx=Math.round(q.x);o.ry=Math.round(q.y);stepChain(o.hair,q.x-o.face*2.5*PS,q.y-43*PS,3.3*PS,.22,.86,Math.sin(frameN/34+q.home)*.05-b.vx*.03);}}
-// ---- 對話：文字直接在 NPC 頭上一個字一個字跳出，每兩個字一聲「嘟」----
-const BLIP_P={elder:330,merchant:520,guard:260};
-function blip(q){if(!AC)return;const t=AC.currentTime,f=(BLIP_P[q.n.id]||420)*(1+(Math.random()-.5)*.06);tone(t,f,'square',.05,.045);}
-function worldTalk(q){const r=q.n.talk();q.o.face=Math.sign(WP.x-q.x)||1;WORLD.dlg={q,lines:r.lines,i:0,t:0,last:0,done:r.done};WORLD.dlgEat=true;}
-function worldDlgStep(ok){const d=WORLD.dlg;if(!d)return;const line=d.lines[d.i];
-  if(Math.abs(WP.x+WP.w/2-d.q.x)>170){WORLD.dlg=null;return;}
-  if(d.t<line.length){d.t=Math.min(line.length,d.t+.5);const n=Math.floor(d.t);if(n>d.last){for(let k=d.last+1;k<=n;k++)if(k%2===0&&!/[\s，。、！？…「」（）：,.!?]/.test(line[k-1]))blip(d.q);d.last=n;}}
-  if(ok){WORLD.dlgEat=true;if(d.t<line.length){d.t=line.length;d.last=line.length;}else{d.i++;d.t=0;d.last=0;if(d.i>=d.lines.length){const f=d.done;WORLD.dlg=null;if(f)f();}}}}
-function wrapZh(s,n){const out=[];let cur='';for(const ch of s){cur+=ch;if(cur.length>=n&&/[，。、！？…」]/.test(ch)||cur.length>=n+4){out.push(cur);cur='';}}if(cur)out.push(cur);return out;}
-function drawWorldDlg(){const d=WORLD.dlg;if(!d)return;const q=d.q,line=d.lines[d.i].slice(0,Math.floor(d.t)),rows=wrapZh(line,13),x=q.x-WCAM.x,y0=q.y-WCAM.y-52;
-  T(q.n.name,x,y0-rows.length*11-8,6,'#ffe9a8');
-  rows.forEach((r,k)=>{const y=y0-(rows.length-1-k)*11;for(const [ox,oy] of [[-.7,0],[.7,0],[0,-.7],[0,.7]])T(r,x+ox,y+oy,7,'#0a0a10');T(r,x,y,7,'#ffffff');});
-  if(d.t>=d.lines[d.i].length&&frameN%40<26)T('▼',x,y0+9,5.5,'#ffe9a8');}
-function worldAltar(a){const q=SAVE.quests||{};if(!a.need(q)){WORLD.toast=a.bi===1?'先和村長談談':'先打倒史萊姆首領';WORLD.toastT=150;return;}
-  WORLD.backPos={x:a.x-6,y:a.y-40};TOWN.inFight=true;startFight(a.bi);}
-
-// ---- 繪製 ----
-function drawWorldT(){
-  const info=dayInfo(),cx0=Math.round(WCAM.x),cy0=Math.round(WCAM.y),day=1-info.night;
-  // 天空
-  const top=lerpC([16,18,40],[86,150,220],day),bot=lerpC([40,36,70],[200,224,240],day),dusk=Math.max(0,1-Math.abs(info.t-.22)*12)+Math.max(0,1-Math.abs(info.t-.78)*12);
-  const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,`rgb(${top})`);gr.addColorStop(1,`rgb(${lerpC(bot,[240,150,90],Math.min(1,dusk))})`);g.fillStyle=gr;g.fillRect(0,0,W,H);
-  if(info.night>.3){g.fillStyle=`rgba(255,255,255,${(info.night-.3)*.9})`;for(let k=0;k<70;k++){g.fillRect((k*137+11)%W,(k*71+5)%(H*.6),1,1);}}
-  // 太陽／月亮沿弧線移動
-  {const a=info.sunUp?(info.t-.2)/.6:((info.t+.2)%1)/.4,ox=W*.1+a*W*.8,oy=H*.55-Math.sin(a*Math.PI)*H*.42;
-    if(info.sunUp){g.globalAlpha=.5;g.drawImage(soft(40,'rgba(255,240,180,.8)'),ox-40,oy-40);g.globalAlpha=1;g.fillStyle='#fff3c0';g.beginPath();g.arc(ox,oy,16,0,TAU);g.fill();}
-    else{g.fillStyle='#e8e8f4';g.beginPath();g.arc(ox,oy,15,0,TAU);g.fill();g.fillStyle=`rgb(${top})`;g.beginPath();g.arc(ox+6,oy-4,13,0,TAU);g.fill();}}
-  drawWorldBG(info,cx0,cy0);
-  if(typeof atmoBack==='function')atmoBack(info,cx0,cy0);
-  // 方塊（分塊快取）
-  g.save();g.translate(-cx0,-cy0);g.imageSmoothingEnabled=false;
-  const c0=Math.floor(cx0/(32*TS)),c1=Math.floor((cx0+W)/(32*TS)),r0=Math.floor(cy0/(32*TS)),r1=Math.floor((cy0+H)/(32*TS));
-  for(let cy=r0;cy<=r1;cy++)for(let cx=c0;cx<=c1;cx++){if(cx<0||cy<0)continue;g.drawImage(chunkCanvas(cx,cy),cx*32*TS,cy*32*TS);}
-  // 裝飾
-  for(const d of WORLD.deco){if(d.x<cx0-80||d.x>cx0+W+80)continue;
-    if(d.type==='tree'){const tc=TREES[d.v],sc=d.h/10;g.drawImage(tc,d.x-32*sc,d.y-140*sc,64*sc,140*sc);}
-    else if(d.type==='lamp'){g.fillStyle='#24202a';g.fillRect(d.x-2,d.y-46,4,46);g.fillRect(d.x-6,d.y-50,12,4);g.fillStyle=info.night>.3?'#ffe0a0':'#a89a7a';g.fillRect(d.x-4,d.y-46,8,7);
-      if(info.night>.3){gg.save();gg.translate(-cx0,-cy0);gg.globalAlpha=.8*info.night;gg.drawImage(soft(36,'rgba(255,210,140,.7)'),d.x-36,d.y-78);gg.restore();}}
-    else if(d.type==='grass'){const cols=['#3e7a2e','#4f9a38','#5aa840','#2f6626'];for(let k=0;k<d.h;k++){const bx=d.x+k*2-d.h,hh=4+((k*7+d.v*3)%6),sw=Math.round(Math.sin(frameN/40+d.x*.05+k)*1.2);g.fillStyle=cols[(k+d.v)&3];g.fillRect(bx+sw,d.y-hh,1,hh-1);g.fillRect(bx,d.y-2,1,2);}}
-    else if(d.type==='smoke'){for(let k=0;k<5;k++){const ph=((frameN*.4+k*24+d.x)%120)/120,sx=d.x+Math.sin(ph*6+k)*4+ph*14,sy=d.y-ph*60;g.globalAlpha=(1-ph)*.35;g.fillStyle='#d8d8de';const r=2+ph*6;g.fillRect(Math.round(sx-r/2),Math.round(sy-r/2),Math.round(r),Math.round(r));}g.globalAlpha=1;}
-    else if(d.type==='fountain'){g.fillStyle='#6c6c78';g.fillRect(d.x-40,d.y-12,80,12);g.fillStyle='#5a7aa8';g.fillRect(d.x-36,d.y-10,72,5);g.fillStyle='#8a8a96';g.fillRect(d.x-4,d.y-40,8,28);g.fillRect(d.x-16,d.y-44,32,4);
-      for(let k=0;k<3;k++){const ph=(frameN/6+k*7)%20;g.fillStyle='rgba(170,210,255,.8)';g.fillRect(d.x-1+(k-1)*6,d.y-44-ph*.6+ph*ph*.04,2,2);}}}
-  // 夜晚窗戶發光
-  if(info.night>.2){gg.save();gg.translate(-cx0,-cy0);gg.globalAlpha=.5*info.night;const sg=soft(14,'rgba(255,200,120,.7)');
-    for(const hs of WORLD.town.houses){for(const [wx,wy] of hs.wins)gg.drawImage(sg,wx*TS-14,wy*TS-14);}gg.restore();}
-  // 祭壇
-  for(const a of WORLD.altars){if(a.x<cx0-60||a.x>cx0+W+60)continue;const col=a.bi===1?'#7cff6a':a.bi===2?'#ff8a4a':'#b8a0ff';
-    g.fillStyle='#4a4a56';g.fillRect(a.x-14,a.y-10,28,10);g.fillStyle='#5c5c68';g.fillRect(a.x-10,a.y-16,20,6);g.fillStyle=col;g.fillRect(a.x-4,a.y-24-Math.sin(frameN/20)*2,8,8);
-    gg.save();gg.translate(-cx0,-cy0);gg.globalAlpha=.5+.2*Math.sin(frameN/15);gg.drawImage(soft(26,'rgba(255,255,255,.5)'),a.x-26,a.y-46);gg.restore();}
+  if(SIDE.toastT>0)SIDE.toastT--;
+  const reg=regionAt(p.x);if(reg.name!==SIDE.regName){if(SIDE.regName)SIDE.regT=200;SIDE.regName=reg.name;}if(SIDE.regT>0)SIDE.regT--;
+  WCAM.x=lerp(WCAM.x,clamp(p.x+p.w/2-W/2,0,SW.len-W),.12);WCAM.y=lerp(WCAM.y,groundY(p.x)-372,.08);}
+// ---------- 繪製 ----------
+function drawWorldT(){const info=dayInfo(),cx0=Math.round(WCAM.x),cy0=Math.round(WCAM.y),day=1-info.night,dk=duskK(info.t);
+  g.imageSmoothingEnabled=false;
+  // 天空：分段色帶（像素風）
+  const top=lerpC(lerpC([10,12,30],[70,120,190],day),[70,50,100],dk*.8),bot=lerpC(lerpC([30,28,60],[180,210,230],day),[240,140,90],Math.min(1,dk));
+  for(let i=0;i<10;i++){const k=i/9;g.fillStyle=`rgb(${lerpC(top,bot,k)})`;g.fillRect(0,Math.floor(i*H/10*.85),W,Math.ceil(H/10*.85)+1);}g.fillStyle=`rgb(${bot})`;g.fillRect(0,Math.floor(H*.85),W,H);
+  if(info.night>.3)for(let k=0;k<90;k++){const tw=(k*7+frameN/20|0)%5===0?.4:1;g.fillStyle=`rgba(255,255,255,${(info.night-.3)*tw})`;g.fillRect((k*137+11)%W,(k*71+5)%(H*.55)|0,1,1);}
+  {const a=info.sunUp?(info.t-.2)/.6:((info.t+.2)%1)/.4,ox=Math.round(W*.1+a*W*.8),oy=Math.round(H*.6-Math.sin(a*Math.PI)*H*.45);
+    if(info.sunUp){g.globalAlpha=.35;PX.disc(g,ox,oy,26,'#fff0c0');g.globalAlpha=1;PX.disc(g,ox,oy,15,'#fff3c8');}else{PX.disc(g,ox,oy,12,'#e8e8f4');PX.disc(g,ox+5,oy-3,10,`rgb(${top})`);}}
+  // 雲（像素）
+  for(let k=0;k<5;k++){const cxk=((k*310-cx0*.05+frameN*.03)%(W+200)+W+200)%(W+200)-100,cyk=40+k*23%70;g.fillStyle=`rgba(${lerpC([60,60,90],[240,240,250],day)},.55)`;for(let j=0;j<4;j++)g.fillRect(Math.round(cxk+j*14-20),Math.round(cyk-(j%2)*5),30,6);}
+  // 背景層：依鏡頭所在區域淡入淡出
+  const gs=SW.base-cy0;const mid=cx0+W/2;const wts={};for(const r of SW.regions){const d=mid<r.x0?r.x0-mid:mid>r.x1?mid-r.x1:0;wts[r.id]=clamp(1-d/500,0,1);}
+  const pars=[.1,.25,.45],offs=[-10,10,30];
+  for(let L=0;L<3;L++){for(const r of SW.regions){const set=SA.bg[r.id];const a=wts[r.id];if(!set||a<=0||!set[L])continue;const img=set[L],par=pars[L],off=-((cx0*par)%img.width+img.width)%img.width,y0=Math.round(gs-img.height+offs[L]+(L===0?-30:0));
+      g.globalAlpha=a;for(let x=off;x<W;x+=img.width)g.drawImage(img,Math.round(x),y0);g.globalAlpha=1;}
+    // 層與層之間的霧
+    const fogC=wts.forest+wts.camp>.5?'150,180,180':wts.town>.5?'230,190,160':'200,210,225';g.fillStyle=`rgba(${lerpC(fogC.split(',').map(Number),[30,34,60],info.night)},${.10+.05*L})`;g.fillRect(0,Math.round(gs-120+L*30),W,90);}
+  g.fillStyle=`rgba(8,10,30,${info.night*.35})`;g.fillRect(0,0,W,H);
+  // 世界（平移）
+  g.save();g.translate(-cx0,-cy0);
+  // 森林光柱（像素階梯）
+  if(day>.2&&(wts.forest+wts.camp)>0){for(let i=0;i<5;i++){const wx=Math.floor(cx0/700)*700+i*260+((i*97)%120),a=(.06+.03*Math.sin(frameN/200+i))*day*(wts.forest+wts.camp)*.8;for(let s=0;s<8;s++){g.fillStyle=`rgba(220,240,230,${a*(1-s/8)})`;g.fillRect(wx+s*10,cy0+s*40,26-s,40);}}}
+  // 地面
+  g.drawImage(SA.ground,cx0,0,W+2,SA.ground.height,cx0,SA.gTop,W+2,SA.ground.height);
+  // 場景物件
+  const lights=[];
+  for(const d of SA.deco){if(d.x<cx0-220||d.x>cx0+W+220)continue;const gy=groundY(d.x);
+    if(d.k==='tree'){const t=SA.trees[d.v];g.drawImage(t,Math.round(d.x-t.width/2),gy-t.height+4);}
+    else if(d.k==='bush'){const b=SA.bush[d.v%3];g.drawImage(b,d.x-20,gy-b.height+3);}
+    else if(d.k==='rock'){const b=SA.rock[d.v%2];g.drawImage(b,d.x-15,gy-b.height+3);}
+    else if(d.k==='tent'){g.drawImage(SA.tent,d.x-48,gy-62);}
+    else if(d.k==='bedroll'){g.drawImage(SA.bedroll,d.x-14,gy-11);}
+    else if(d.k==='log'){g.drawImage(SA.log,d.x-22,gy-11);}
+    else if(d.k==='crate'){g.drawImage(SA.crate,d.x-15,gy-21);}
+    else if(d.k==='lantern'){g.drawImage(SA.lantern,d.x-6,gy-39);lights.push([d.x,gy-30,60,'255,200,120',.8]);}
+    else if(d.k==='fire'){g.drawImage(SA.fire,d.x-20,gy-12);const f=frameN/5|0;for(let k=0;k<3;k++){const h=10+((f+k*3)%4)*3-k*3,w=6-k*2;g.fillStyle=['#ff6a20','#ffb040','#fff0a0'][k];for(let j=0;j<h;j++){const ww=Math.max(1,Math.round(w*(1-j/h)));g.fillRect(d.x-ww+Math.round(Math.sin((frameN+j*7)/6)*(j/h)*2),gy-8-j,ww*2,1);}}
+      if(frameN%6===0)SIDE.atmo.push({k:'ember',x:d.x+(Math.random()-.5)*8,y:gy-14,vx:(Math.random()-.5)*.4,vy:-.6-Math.random()*.6,life:90,max:90});lights.push([d.x,gy-14,150+Math.sin(frameN/7)*8,'255,160,80',1]);}
+    else if(d.k==='house'){const s=d.s;g.drawImage(s.c,d.x-s.ox,gy-s.h+2);if(info.night>.15)for(const w of s.wins){g.fillStyle=`rgba(255,200,120,${Math.min(1,info.night*1.4)})`;g.fillRect(d.x+w[4],gy+2+w[5],w[2],w[3]);lights.push([d.x+w[0],gy+w[1],34,'255,190,110',.7]);}
+      for(const c of s.chim)for(let k=0;k<4;k++){const ph=((frameN*.35+k*30+d.x)%120)/120;g.globalAlpha=(1-ph)*.4;g.fillStyle='#c8c8d0';const r=2+Math.round(ph*6);g.fillRect(Math.round(d.x+c[0]+ph*16-r/2),Math.round(gy+c[1]-ph*50),r,r);}g.globalAlpha=1;}
+    else if(d.k==='well'){g.drawImage(SA.well,d.x-18,gy-44);}
+    else if(d.k==='stall'){g.drawImage(SA.stall,d.x-28,gy-46);}
+    else if(d.k==='lamp'){g.drawImage(SA.lamp,d.x-7,gy-59);if(info.night>.2)lights.push([d.x,gy-50,70,'255,200,120',.9]);}
+    else if(d.k==='sign'){g.drawImage(SA.sign,d.x-15,gy-29);}}
   // NPC
-  for(const q of WORLD.npcs){if(q.x<cx0-60||q.x>cx0+W+60)continue;const out=townNpcRig(q.n).render(x=>drawPlayerRig(x,q.o,Object.assign({},PC,q.n.pal)));g.drawImage(out,q.o.rx-90,q.o.ry-130);}
-  // 小怪
-  for(const m of WORLD.mobs){const d=MOBDEF[m.kind],x=Math.round(m.x),y=Math.round(m.y);g.fillStyle=m.hurt>0?'#ffffff':d.col;
-    if(m.kind==='bat'){const f=Math.sin(m.t/3)*4;g.fillRect(x+4,y+2,6,6);g.fillRect(x,y+2+f*.5,4,3);g.fillRect(x+10,y+2+f*.5,4,3);g.fillStyle='#ff5a6e';g.fillRect(x+5,y+3,1,1);g.fillRect(x+8,y+3,1,1);}
-    else{const sq=m.onG?1:.85;g.beginPath();g.ellipse(x+m.w/2,y+m.h,m.w/2,m.h*sq,0,Math.PI,0);g.fill();g.fillStyle='rgba(255,255,255,.3)';g.fillRect(x+4,y+3,3,2);
-      g.fillStyle='#101010';g.fillRect(x+m.w/2-4+m.face*2,y+m.h-9,2,3);g.fillRect(x+m.w/2+2+m.face*2,y+m.h-9,2,3);
-      if(m.kind==='cslime'){gg.save();gg.translate(-cx0,-cy0);gg.globalAlpha=.5;gg.drawImage(soft(12,'rgba(170,110,255,.7)'),x+m.w/2-12,y+m.h-16);gg.restore();}}
-    if(m.hp<m.mhp){g.fillStyle='#200';g.fillRect(x,y-6,m.w,2);g.fillStyle='#6f6';g.fillRect(x,y-6,m.w*m.hp/m.mhp,2);}}
-  if(typeof ksDrawWorld==='function')ksDrawWorld(info);
+  for(const q of SIDE.npcs){if(q.x<cx0-60||q.x>cx0+W+60)continue;const out=townNpcRig(q.n).render(x=>drawPlayerRig(x,q.o,Object.assign({},PC,q.n.pal)));g.drawImage(out,q.o.rx-90,q.o.ry-130);}
   // 玩家
-  const p=WP;if(!p.wdead){const rg=outfitRig(p.outfit);if(!(p.iframes>0&&frameN%6<3)){const out=rg.render(x=>drawPlayerRig(x,p,p.pal));g.drawImage(out,p.rx-rg.ox,p.ry-rg.oy);}}
-  // 子彈
-  for(const s of WORLD.shots){g.strokeStyle=s.arrow?'#d8d8e4':'#ffffff';g.lineWidth=s.arrow?1.5:2;g.beginPath();g.moveTo(s.x-s.vx*.8,s.y-s.vy*.8);g.lineTo(s.x,s.y);g.stroke();}
+  const p=WP;{const rg=outfitRig(p.outfit);const out=rg.render(x=>drawPlayerRig(x,p,p.pal));g.drawImage(out,p.rx-rg.ox,p.ry-rg.oy);}
+  for(const s of SIDE.shots){g.fillStyle=s.arrow?'#d8d8e4':'#ffffff';PX.line(g,s.x-s.vx*.7,s.y-s.vy*.7,s.x,s.y,g.fillStyle);}
   for(const q of parts){g.globalAlpha=Math.max(0,q.life/q.max);g.fillStyle=q.col;g.fillRect(Math.round(q.x),Math.round(q.y),q.size||1,q.size||1);}g.globalAlpha=1;
+  // 前景近景（森林裡偶爾有壓暗的大樹幹）
+  for(const d of SA.deco){if(d.k!=='tree'||!d.z)continue;const fx=d.x+(d.x-cx0-W/2)*.35;if(fx<cx0-200||fx>cx0+W+200)continue;g.globalAlpha=.9;g.fillStyle='#0a100e';g.fillRect(Math.round(fx-14),cy0,28,H);g.globalAlpha=1;}
   g.restore();
-  // 地底變暗＋夜晚（每一欄一條漸層）
-  if(!WORLD.dark){const c=mk(1,420),x=c.getContext('2d'),gr=x.createLinearGradient(0,0,0,420);gr.addColorStop(0,'rgba(0,0,4,0)');gr.addColorStop(1,'rgba(0,0,4,.9)');x.fillStyle=gr;x.fillRect(0,0,1,420);WORLD.dark=c;}
-  if(!WORLD.dl){WORLD.dl=mk(W,H);}const dl=WORLD.dl,dx_=dl.getContext('2d');dx_.globalCompositeOperation='source-over';dx_.clearRect(0,0,W,H);
-  for(let tx=Math.floor(cx0/TS);tx<=Math.ceil((cx0+W)/TS);tx++){if(tx<0||tx>=WORLD.w)continue;const sx=tx*TS-cx0,y0=(WORLD.surf[tx]+8)*TS-cy0;if(y0>=H)continue;
-    dx_.drawImage(WORLD.dark,sx,y0,TS,420);if(y0+420<H){dx_.fillStyle='rgba(0,0,4,.9)';dx_.fillRect(sx,y0+420,TS,H-y0-420);}}
-  {const lx=WP.x+WP.w/2-cx0,ly=WP.y+WP.h/2-cy0,gr=dx_.createRadialGradient(lx,ly,10,lx,ly,110);gr.addColorStop(0,'rgba(0,0,0,.95)');gr.addColorStop(1,'rgba(0,0,0,0)');
-    dx_.globalCompositeOperation='destination-out';dx_.fillStyle=gr;dx_.fillRect(lx-110,ly-110,220,220);dx_.globalCompositeOperation='source-over';}
-  g.drawImage(dl,0,0);
-  if(info.night>0){g.fillStyle=`rgba(6,8,30,${info.night*.5})`;g.fillRect(0,0,W,H);}
-  if(typeof atmoFront==='function')atmoFront(info,cx0,cy0);
-}
-function drawWorldUI(){
-  if(WORLD.map&&WORLD.map.open){drawWorldMap();return;}
-  const p=WP,t=worldNear();
-  // 快捷欄（左上）
-  for(const [i,wn,label] of [[0,'katana','sword'],[1,'gun','gun'],[2,'bow','bow']]){const x=10+i*30,y=10,on=p.weapon===wn;R(x,y,26,26,on?'rgba(255,240,200,.35)':'rgba(20,24,60,.55)');R(x,y,26,1,on?'#ffe9a8':'#6a6a9a');R(x,y+25,26,1,on?'#ffe9a8':'#6a6a9a');R(x,y,1,26,on?'#ffe9a8':'#6a6a9a');R(x+25,y,1,26,on?'#ffe9a8':'#6a6a9a');
-    icon(label,x+13,y+13,on?'#ffffff':'#b8b8d0');T(String(i+1),x+4,y+5,5,'#ffffff','left');}
-  T(tr(p.weapon==='katana'?'太刀':p.weapon==='gun'?'手槍':'弓'),10,44,6.5,'#ffffff','left');
-  // 生命（右上，愛心）
+  // 夜晚：黑暗層＋光源（營火、提燈、窗戶、街燈）
+  if(info.night>.05){if(!SIDE.dl)SIDE.dl=mk(W,H);const dl=SIDE.dl,x=dl.getContext('2d');x.globalCompositeOperation='source-over';x.clearRect(0,0,W,H);x.fillStyle=`rgba(4,5,18,${info.night*.62})`;x.fillRect(0,0,W,H);
+    x.globalCompositeOperation='destination-out';for(const [lx,ly,r] of lights){const sx=lx-cx0,sy=ly-cy0;if(sx<-r||sx>W+r)continue;x.drawImage(soft(Math.round(r),'rgba(0,0,0,1)'),sx-Math.round(r),sy-Math.round(r));}x.globalAlpha=1;x.globalCompositeOperation='source-over';g.drawImage(dl,0,0);
+    g.save();g.globalCompositeOperation='lighter';for(const [lx,ly,r,col,a] of lights){const sx=lx-cx0,sy=ly-cy0;if(sx<-r||sx>W+r)continue;g.globalAlpha=.35*a*info.night;g.drawImage(soft(Math.round(r*.7),`rgba(${col},.6)`),sx-Math.round(r*.7),sy-Math.round(r*.7));}g.restore();}
+  // 粒子：落葉、塵埃、螢火蟲、火星
+  const A=SIDE.atmo;if(A.length<80&&frameN%3===0){const r=Math.random(),forest=wts.forest+wts.camp;
+    if(info.night>.5&&forest>.4&&r<.4)A.push({k:'fly',x:cx0+Math.random()*W,y:cy0+gs-30-Math.random()*130,vx:0,vy:0,life:300,max:300,ph:Math.random()*9});
+    else if(forest>.4&&r<.55)A.push({k:'leaf',x:cx0+Math.random()*W+60,y:cy0-10,vx:-.3-Math.random()*.5,vy:.35+Math.random()*.35,life:600,max:600,ph:Math.random()*9,c:['#4f8a3a','#6aa848','#3a6a2e','#8aa040'][(Math.random()*4)|0]});
+    else A.push({k:'dust',x:cx0+Math.random()*W,y:cy0+Math.random()*gs,vx:(Math.random()-.5)*.15,vy:-.03,life:260,max:260});}
+  for(const q of A){q.life--;q.x+=q.vx;q.y+=q.vy;if(q.k==='leaf'){q.ph+=.05;q.x+=Math.sin(q.ph)*.6;}if(q.k==='fly'){q.ph+=.03;q.x+=Math.sin(q.ph*1.3)*.4;q.y+=Math.cos(q.ph)*.3;}
+    const sx=Math.round(q.x-cx0),sy=Math.round(q.y-cy0),a=Math.min(1,q.life/40,(q.max-q.life)/40);if(sx<-20||sx>W+20)q.life=0;
+    g.globalAlpha=Math.max(0,a)*(q.k==='dust'?.35:.9);g.fillStyle=q.k==='leaf'?q.c:q.k==='fly'?'#e8ff9a':q.k==='ember'?(q.life%20<10?'#ffb050':'#ff7030'):'#f0f4ff';g.fillRect(sx,sy,q.k==='leaf'?2:1,1);
+    if(q.k==='fly'){g.globalAlpha=a*.25;g.fillRect(sx-1,sy-1,3,3);}}g.globalAlpha=1;SIDE.atmo=A.filter(q=>q.life>0);
+  // 色調與暗角
+  if(wts.forest>0){g.fillStyle=`rgba(14,50,46,${.14*wts.forest})`;g.fillRect(0,0,W,H);}
+  if(dk>0){g.save();g.globalCompositeOperation='overlay';g.fillStyle=`rgba(255,150,90,${.25*dk})`;g.fillRect(0,0,W,H);g.restore();}
+  if(!SIDE.vig){const c=mk(W,H),x=c.getContext('2d'),gr=x.createRadialGradient(W/2,H/2,H*.35,W/2,H/2,H*.95);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,8,.5)');x.fillStyle=gr;x.fillRect(0,0,W,H);SIDE.vig=c;}g.drawImage(SIDE.vig,0,0);
+  if(SIDE.sleep>0){g.fillStyle=`rgba(0,0,0,${1-Math.abs(SIDE.sleep-45)/45})`;g.fillRect(0,0,W,H);}}
+function drawWorldUI(){const p=WP,t=INV.open?null:sideNear();
+  for(const [i,wn,label] of [[0,'katana','sword'],[1,'gun','gun'],[2,'bow','bow']]){const x=10+i*30,y=10,on=p.weapon===wn;R(x,y,26,26,on?'rgba(255,255,255,.16)':'rgba(9,9,13,.72)');const bc=on?'#ffffff':'#6a6880';R(x,y,26,1,bc);R(x,y+25,26,1,bc);R(x,y,1,26,bc);R(x+25,y,1,26,bc);icon(label,x+13,y+13,on?'#ffffff':'#a8a6c0');T(String(i+1),x+4,y+5,5,'#cfcfdc','left');}
   const hearts=10,per=p.mhp/hearts;for(let i=0;i<hearts;i++){const v=clamp((p.hp-i*per)/per,0,1),x=W-14-(hearts-1-i)*13,y=14;spr2(heartSpr('#3a1018','#200a10'),x-4.5,y-4,1);if(v>0){cx.globalAlpha=.4+.6*v;spr2(heartSpr('#ff4060','#a01428'),x-4.5,y-4,1);cx.globalAlpha=1;}}
-  T(Math.ceil(p.hp)+' / '+p.mhp,W-14,30,6,'#ffffff','right');
-  // 時間
-  const info=dayInfo();T((info.night>.5?'☾ ':'☀ ')+clockStr(),W-14,H-12,6.5,'#e8e8f0','right');
-  // 任務
-  const q=SAVE.quests||{},r=SAVE.rumor||{};let qy=58;
-  if(q.m1){T('主線一：'+(q.m1===1?'到西方森林深處，找到史萊姆首領的巢穴':q.m1===2?'到森林深處的祭壇挑戰哥布林首領':'後續開發中'),10,qy,6,'#e8e8f0','left');qy+=10;}else{T('和主鎮的村長談談',10,qy,6,'#9a98b0','left');qy+=10;}
-  if(q.m2===2){T('主線二：鏡中銀影已擊敗',10,qy,6,'#e8e8f0','left');qy+=10;}else if(r.m2){T('主線二（demo）：東邊的鏡之祭壇',10,qy,6,'#e8e8f0','left');qy+=10;}
-  // 互動提示
-  if(t&&!WORLD.dlg){const x=(t.kind==='npc'?t.q.x:t.a.x)-WCAM.x,y=(t.kind==='npc'?t.q.y-62:t.a.y-48)-WCAM.y;keycap(x-6,y-7,12,'E');T(t.kind==='npc'?t.q.n.name:'召喚 '+t.a.label,x,y-14,6.5,'#ffe9a8');}
-  if(WORLD.toastT>0){cx.globalAlpha=Math.min(1,WORLD.toastT/30);R(W/2-150,64,300,20,'rgba(10,8,20,.8)');R(W/2-150,64,300,1,'#b8a0ff');T(WORLD.toast,W/2,74,7,'#ffffff');cx.globalAlpha=1;}
-  if(p.wdead>0){cx.fillStyle='rgba(60,0,0,.35)';cx.fillRect(0,0,cv.width,cv.height);T('你倒下了',W/2,H/2-10,16,'#ff6070');T('重生倒數 '+Math.ceil(p.wdead/60),W/2,H/2+14,8,'#ffffff');}
-  // 泰拉瑞亞式對話框（一段話）
-  drawWorldDlg();
-  T('A/D 移動（連按兩下衝刺）　W 跳　左鍵 攻擊（可破壞地形，10 分鐘復原）　1/2/3 武器　E 互動　M 地圖　Esc 存檔離開',W/2,H-4,5.5,'rgba(220,220,235,.5)');
-}
+  const m=Math.floor(SIDE.time*24*60);T(((dayInfo().night>.5)?'☾ ':'☀ ')+String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0'),W-14,30,6,'#e8e8f0','right');
+  if(t&&!SIDE.dlg){const x=t.x-WCAM.x,y=groundY(t.x)-(t.k==='npc'?60:t.k==='tent'?76:30)-WCAM.y;keycap(x-6,y-7,12,'E');T(t.label,x,y-14,6.5,'#ffe9a8');}
+  if(SIDE.dlg){const d=SIDE.dlg,q=d.q,line=d.lines[d.i].slice(0,Math.floor(d.t)),rows=wrapZh(line,13),x=q.x-WCAM.x,y0=groundY(q.x)-WCAM.y-52;T(q.n.name,x,y0-rows.length*11-8,6,'#ffe9a8');
+    rows.forEach((r,k)=>{const y=y0-(rows.length-1-k)*11;for(const [ox,oy] of [[-.7,0],[.7,0],[0,-.7],[0,.7]])T(r,x+ox,y+oy,7,'#0a0a10');T(r,x,y,7,'#ffffff');});if(d.t>=d.lines[d.i].length&&frameN%40<26)T('▼',x,y0+9,5.5,'#ffe9a8');}
+  if(SIDE.regT>0){const a=Math.min(1,SIDE.regT/40,(200-SIDE.regT)/30);cx.globalAlpha=a;T('— '+SIDE.regName+' —',W/2,70,12,'#ffffff');cx.globalAlpha=1;}
+  if(SIDE.toastT>0){cx.globalAlpha=Math.min(1,SIDE.toastT/30);T(SIDE.toast,W/2,96,7,'#e8e8f0');cx.globalAlpha=1;}
+  if(!INV.open)T('A/D 移動（連按兩下衝刺）　W 跳　左鍵 攻擊　1/2/3 武器　E 互動　Tab 背包　Esc 存檔離開',W/2,H-6,5.5,'rgba(220,220,235,.5)');}
 
 // =====================================================================
-//  世界地圖（M）：1 格 = 1 像素，走過的地方才會顯示（每 4×4 格一個迷霧格）
+//  Tab：背包／技能樹／召喚 Boss（介面風格同主選單：黑底白蕾絲框）
 // =====================================================================
-const MAPC_T={1:'#7a5634',2:'#4fae3a',3:'#7a7a84',4:'#9a6c3e',5:'#8a8a96',6:'#a84a3a',7:'#5a3a22',8:'#5c6878',9:'#8c8578'};
-const MAPC_W={1:'#3a2a1c',2:'#3c3c44',3:'#c8b890',4:'#5a3a22',5:'#9ab8d0',6:'#8c867a',8:'#6a4426',9:'#2a2a30'};
-function mapCol(x,y){const i=y*WORLD.w+x,t=WORLD.tiles[i];if(t)return MAPC_T[t]||'#888';const wl=WORLD.walls[i];if(wl)return MAPC_W[wl]||'#333';
-  const k=Math.min(1,y/(WORLD.surf[x]||1));return y<WORLD.surf[x]?`rgb(${lerpC([96,150,220],[170,210,240],k)})`:'#14100c';}
-function mapBuild(meta){const w=WORLD.w,h=WORLD.h,c=mk(w,h),x=c.getContext('2d'),id=x.createImageData(w,h),d=id.data,hx=s=>[parseInt(s.slice(1,3),16),parseInt(s.slice(3,5),16),parseInt(s.slice(5,7),16)];
-  const T_={},W_={};for(const k in MAPC_T)T_[k]=hx(MAPC_T[k]);for(const k in MAPC_W)W_[k]=hx(MAPC_W[k]);
-  for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){const i=yy*w+xx,t=WORLD.tiles[i],wl=WORLD.walls[i];let c3;
-    if(t)c3=T_[t];else if(wl)c3=W_[wl];else if(yy<WORLD.surf[xx]){const k=Math.min(1,yy/WORLD.surf[xx]);c3=lerpC([96,150,220],[170,210,240],k);}else c3=[20,16,12];
-    d[i*4]=c3[0];d[i*4+1]=c3[1];d[i*4+2]=c3[2];d[i*4+3]=255;}
-  x.putImageData(id,0,0);WORLD.mapC=c;WORLD.mapX=x;
-  const FW=Math.ceil(w/4),FH=Math.ceil(h/4),f=mk(FW,FH),fx_=f.getContext('2d');fx_.fillStyle='#05060a';fx_.fillRect(0,0,FW,FH);
-  WORLD.fog=new Uint8Array(FW*FH);WORLD.fogC=f;WORLD.fogX=fx_;WORLD.fogBg='#05060a';WORLD.FW=FW;WORLD.FH=FH;
-  if(meta.fog){try{const b=atob(meta.fog);for(let i=0;i<WORLD.fog.length;i++)if(b.charCodeAt(i>>3)&(1<<(i&7))){WORLD.fog[i]=1;fx_.clearRect(i%FW,(i/FW)|0,1,1);}}catch(e){}}}
-function fogReveal(p){if(!WORLD.fog)return;const cx=Math.floor((p.x+p.w/2)/TS/4),cy=Math.floor((p.y+p.h/2)/TS/4),under=(p.y+p.h)/TS>WORLD.surf[clamp(Math.floor(p.x/TS),0,WORLD.w-1)]+12;
-  const rx=under?7:22,ry=under?6:13;for(let j=-ry;j<=ry;j++)for(let i=-rx;i<=rx;i++){if((i*i)/(rx*rx)+(j*j)/(ry*ry)>1)continue;const X=cx+i,Y=cy+j;if(X<0||Y<0||X>=WORLD.FW||Y>=WORLD.FH)continue;const k=Y*WORLD.FW+X;if(!WORLD.fog[k]){WORLD.fog[k]=1;WORLD.fogX.clearRect(X,Y,1,1);}}}
-function fogEncode(){if(!WORLD||!WORLD.fog)return null;const n=WORLD.fog.length,b=new Uint8Array((n+7)>>3);for(let i=0;i<n;i++)if(WORLD.fog[i])b[i>>3]|=1<<(i&7);let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);}
-function drawWorldMap(){const M_=WORLD.map,z=M_.z;R(-400,-400,W+800,H+800,'#0b0c16');
-  const ox=W/2-M_.cx*z,oy=H/2+6-M_.cy*z;cx.imageSmoothingEnabled=false;
-  cx.drawImage(WORLD.mapC,ox*S,oy*S,WORLD.w*z*S,WORLD.h*z*S);cx.drawImage(WORLD.fogC,ox*S,oy*S,WORLD.FW*4*z*S,WORLD.FH*4*z*S);
-  R(ox-1,oy-1,WORLD.w*z+2,1,'#b8a0ff');R(ox-1,oy+WORLD.h*z,WORLD.w*z+2,1,'#b8a0ff');R(ox-1,oy,1,WORLD.h*z,'#b8a0ff');R(ox+WORLD.w*z,oy,1,WORLD.h*z,'#b8a0ff');
-  const seen=(px,py)=>{const X=Math.floor(px/TS/4),Y=Math.floor(py/TS/4);return WORLD.fog[Y*WORLD.FW+X];};
-  const at=(px,py)=>[ox+px/TS*z,oy+py/TS*z];
-  if(seen(WORLD.town.x0*TS+400,WORLD.town.y*TS-40)){const [x,y]=at((WORLD.town.x0+WORLD.town.x1)/2*TS,(WORLD.town.y-70)*TS);T('主鎮',x,y,7,'#ffe9a8');}
-  for(const a of [...WORLD.altars,{x:WORLD.lair.x,y:WORLD.lair.y,bi:1,label:'史萊姆首領的巢穴'}]){if(!seen(a.x,a.y-10))continue;const [x,y]=at(a.x,a.y);const col=a.bi===1?'#7cff6a':a.bi===2?'#ff8a4a':'#b8a0ff';cx.fillStyle=col;cx.beginPath();cx.arc(x*S,(y-3)*S,3*S,0,TAU);cx.fill();T(a.label,x,y-11,5.5,col);}
-  for(const q of WORLD.npcs){if(!seen(q.x,q.y-10))continue;const [x,y]=at(q.x,q.y-18);cx.fillStyle='#ffe9a8';cx.fillRect((x-2)*S,(y-2)*S,4*S,4*S);T(q.n.name,x,y-8,5,'#e8e8f0');}
-  {const [x,y]=at(WP.x+WP.w/2,WP.y+10);cx.fillStyle='#f2f2f8';cx.beginPath();cx.arc(x*S,y*S,4*S,0,TAU);cx.fill();cx.fillStyle='#f9ece9';cx.beginPath();cx.arc((x+WP.face)*S,(y+.6)*S,2.4*S,0,TAU);cx.fill();cx.strokeStyle='#131317';cx.lineWidth=S;cx.beginPath();cx.arc(x*S,y*S,4.6*S,0,TAU);cx.stroke();}
-  R(0,0,W,22,'rgba(4,4,10,.9)');T('世界地圖',W/2,11,8,'#ffffff');T('滾輪縮放　拖曳移動　M / Esc 關閉',W/2,H-10,6,'#a8a6c0');}
-cv.addEventListener('wheel',e=>{if(state==='world'&&WORLD&&WORLD.map&&WORLD.map.open){e.preventDefault();const M_=WORLD.map,f=e.deltaY<0?1.2:1/1.2,z0=Math.min((W-40)/WORLD.w,(H-70)/WORLD.h);M_.z=clamp(M_.z*f,z0,6);}},{passive:false});
-
-// =====================================================================
-//  背景：主城專屬（城堡、屋頂剪影）與野外（雪山、森林丘陵），依鏡頭位置淡入淡出
-// =====================================================================
-let BGS=null;
-function buildBG(){const SW=1600,SH=300,R=mulberry(777);
-  const strip=fn=>{const c=mk(SW,SH),x=c.getContext('2d');fn(x);return c;};
-  const ridge=(x,col,base,amp,f1,f2,seed)=>{const n=vnoise1(seed);x.fillStyle=col;x.beginPath();x.moveTo(0,SH);for(let i=0;i<=SW;i+=4){const v=n(i/f1)*amp+n(i/f2+50)*amp*.35;x.lineTo(i,base-v);}x.lineTo(SW,SH);x.fill();};
-  // 野外遠景：雪山
-  const wildFar=strip(x=>{const n=vnoise1(11);x.fillStyle='#7d93ab';x.beginPath();x.moveTo(0,SH);const pts=[];for(let i=0;i<=SW;i+=4){const v=Math.abs(n(i/140))*150+n(i/37)*18;pts.push([i,200-v]);x.lineTo(i,200-v);}x.lineTo(SW,SH);x.fill();
-    x.fillStyle='#e8eef6';for(const [i,y] of pts)if(y<110)x.fillRect(i,y,4,Math.max(2,(110-y)*.35));
-    x.fillStyle='#6a8098';for(const [i,y] of pts)if(i%8===0)x.fillRect(i,y+20,2,SH);});
-  // 野外近景：森林丘陵
-  const wildNear=strip(x=>{ridge(x,'#4c6e58',220,40,260,70,12);const n=vnoise1(12);
-    for(let i=0;i<SW;i+=7+((R()*6)|0)){const y=220-(n(i/260)*40+n(i/70+50)*14)+4;if(R()<.5){x.fillStyle=R()<.5?'#3f604c':'#46685a';x.beginPath();x.arc(i,y-10,9+R()*8,0,TAU);x.fill();}
-      else{x.fillStyle='#3a5a48';x.beginPath();x.moveTo(i,y-34-R()*14);x.lineTo(i-8,y);x.lineTo(i+8,y);x.fill();}}});
-  // 主城遠景：山丘上的城堡
-  const townFar=strip(x=>{ridge(x,'#8494aa',230,26,300,90,21);const col='#7a889e',wnd=[];
-    const castle=(cx,by)=>{x.fillStyle=col;x.fillRect(cx-120,by-50,240,50);for(let k=-120;k<120;k+=10)x.fillRect(cx+k,by-56,6,6);
-      for(const [dx,hh,ww] of [[-120,90,26],[-60,120,30],[0,170,40],[64,110,30],[120,84,24]]){x.fillRect(cx+dx-ww/2,by-hh,ww,hh);x.beginPath();x.moveTo(cx+dx-ww/2-4,by-hh);x.lineTo(cx+dx,by-hh-ww*1.3);x.lineTo(cx+dx+ww/2+4,by-hh);x.fill();
-        for(let j=1;j<4;j++)wnd.push([cx+dx-2,by-hh+j*22]);x.fillRect(cx+dx-1,by-hh-ww*1.3-12,2,12);}};
-    castle(520,206);castle(1360,214);BGS_W.far=wnd;});
-  // 主城近景：屋頂、尖塔、煙囪剪影
-  const townNear=strip(x=>{const col='#5e6678',wnd=[];x.fillStyle=col;x.fillRect(0,250,SW,SH-250);
-    for(let i=0;i<SW;){const ww=40+((R()*50)|0),hh=40+((R()*50)|0),by=252;x.fillRect(i,by-hh,ww,hh);
-      x.beginPath();x.moveTo(i-6,by-hh);x.lineTo(i+ww/2,by-hh-ww*.7);x.lineTo(i+ww+6,by-hh);x.fill();
-      if(R()<.6)x.fillRect(i+ww*.7,by-hh-ww*.55,6,22);
-      if(R()<.18){x.fillRect(i+ww/2-8,by-hh-70,16,70);x.beginPath();x.moveTo(i+ww/2-12,by-hh-70);x.lineTo(i+ww/2,by-hh-110);x.lineTo(i+ww/2+12,by-hh-70);x.fill();}
-      for(let k=0;k<3;k++)if(R()<.6)wnd.push([i+8+k*((ww-16)/2),by-hh+12+((R()*2)|0)*14]);
-      i+=ww+4+((R()*18)|0);}
-    BGS_W.near=wnd;});
-  const wildMid=strip(x=>{const n=vnoise1(31);for(let i=40;i<SW;i+=140+((R()*90)|0)){const tw=26+R()*30,bx=i;x.fillStyle='#5c7a78';
-      x.beginPath();x.moveTo(bx-tw*1.6,SH);x.quadraticCurveTo(bx-tw*.6,SH-40,bx-tw*.5,SH-120);x.lineTo(bx-tw*.42,0);x.lineTo(bx+tw*.42,0);x.lineTo(bx+tw*.5,SH-120);x.quadraticCurveTo(bx+tw*.6,SH-40,bx+tw*1.6,SH);x.fill();
-      x.fillStyle='#55726e';for(let k=0;k<8;k++){x.beginPath();x.arc(bx+(R()-.5)*160,20+R()*70,26+R()*30,0,TAU);x.fill();}
-      x.strokeStyle='#4e6a66';x.lineWidth=2;for(let k=0;k<3;k++){const vx=bx+(R()-.5)*120;x.beginPath();x.moveTo(vx,40);x.quadraticCurveTo(vx+6,90+R()*40,vx-4,130+R()*80);x.stroke();}}});
-  return {wildFar,wildMid,wildNear,townFar,townNear,SW,SH};}
-const BGS_W={far:[],near:[]};
-function drawWorldBG(info,cx0,cy0){if(!BGS)BGS=buildBG();const SW=BGS.SW,SH=BGS.SH,surfS=WORLD.town.y*TS-cy0;
-  const tcx=(WORLD.town.x0+WORLD.town.x1)/2*TS,half=(WORLD.town.x1-WORLD.town.x0)/2*TS,d=Math.abs(cx0+W/2-tcx),tb=clamp(1-(d-half)/500,0,1);
-  const layer=(img,par,fy,a)=>{if(a<=0)return;const by=surfS*fy+(1-fy)*H*.7;const off=-((cx0*par)%SW+SW)%SW;g.globalAlpha=a;
-    for(let x=off;x<W;x+=SW)g.drawImage(img,Math.round(x),Math.round(by-SH+40));g.globalAlpha=1;return by;};
-  const dim=info.night*.62;
-  layer(BGS.wildFar,.12,.22,1-tb);layer(BGS.townFar,.12,.22,tb);
-  {const fk=clamp(1-(cx0+W/2)/(WORLD.w*TS*.38),0,1);layer(BGS.wildMid,.2,.34,(1-tb)*Math.min(1,fk*2.5));}
-  g.fillStyle=`rgba(10,12,40,${dim*.7})`;g.fillRect(0,0,W,H);
-  if(info.night>.2&&tb>0){const by=surfS*.22+(1-.22)*H*.7,off=-((cx0*.12)%SW+SW)%SW;g.fillStyle=`rgba(255,200,120,${info.night*tb*.8})`;for(let x=off;x<W;x+=SW)for(const [wx,wy] of BGS_W.far)g.fillRect(Math.round(x+wx),Math.round(by-SH+40+wy),3,4);}
-  layer(BGS.wildNear,.3,.45,1-tb);layer(BGS.townNear,.3,.45,tb);
-  g.fillStyle=`rgba(10,12,40,${dim*.5})`;g.fillRect(0,0,W,H);
-  if(info.night>.2&&tb>0){const by=surfS*.45+(1-.45)*H*.7,off=-((cx0*.3)%SW+SW)%SW;g.fillStyle=`rgba(255,200,120,${info.night*tb*.85})`;for(let x=off;x<W;x+=SW)for(const [wx,wy] of BGS_W.near)g.fillRect(Math.round(x+wx),Math.round(by-SH+40+wy),4,5);}
-}
-</script>
-<script>
-// =====================================================================
-//  野外 Boss：史萊姆首領（行為照原版泰拉瑞亞史萊姆王，數值依 terraria.wiki.gg）
-//  - 跳躍循環：普通 → 普通 → 低跳 → 高跳；血越少冷卻越短
-//  - 看不到玩家或高低差超過 10 格：5 秒計時後瞬移到玩家附近
-//  - 每掉 5% 血分裂 1–3 隻小史萊姆（困難：25% 是帶刺史萊姆）；死亡時噴出 4–7 隻
-//  - 體型隨血量縮到 60%；玩家倒下或跑太遠就離開
-// =====================================================================
-const KS_TILE=16*.86;                     // 原版 1 格 16px，換算成本作角色比例
-const KS_G=.4;                            // 世界重力（與玩家相同）
-const ksV=h=>Math.sqrt(2*KS_G*h*KS_TILE); // 想跳到 h 格高需要的初速
-const KS_JUMPS=[{k:'n',h:6.42,vx:3.4},{k:'n',h:6.42,vx:3.4},{k:'l',h:3.56,vx:2.6},{k:'h',h:17.2,vx:4.6}];
-const KS_CD=[[.8,60,100],[.6,40,67],[.4,30,50],[.2,20,34],[.1,14,23],[0,10,16]]; // 血量門檻、普通/低跳冷卻、高跳冷卻（幀）
-function ksHard(){return GAMEDIFF===1;}
-function ksStats(){return ksHard()?{hp:2800,dmg:64}:{hp:2000,dmg:40};}
-
-function wHurt(d,sx){const p=WP;if(!p||p.wdead||p.iframes>0||godMode)return false;p.hp-=d;p.iframes=40;p.vx=Math.sign(p.x+p.w/2-sx||1)*5;p.vy=-4;SFX.hurt&&SFX.hurt();addShake(4);
-  pop(p.x+p.w/2,p.y-6,d,'#ff6070');flash=.25;flashCol='200,30,50';
-  if(p.hp<=0){p.hp=0;p.wdead=180;WORLD.toast='你倒下了……將在主鎮重生';WORLD.toastT=170;part(p.x+p.w/2,p.y+p.h/2,40,'#ffffff',3,40,2);}return true;}
-
-function ksSpawn(fromAltar){if(WORLD.ks&&!WORLD.ks.gone)return;const st=ksStats(),L=WORLD.lair,px=WP.x+WP.w/2;
-  const x=fromAltar?L.x:clamp(px+(px<L.x?160:-160),L.x-300,L.x+300);
-  WORLD.ks={x,y:WP.y-260,vx:0,vy:0,w:104,h:78,hp:st.hp,mhp:st.hp,dmg:st.dmg,sz:1,sq:1,onG:false,ai:0,cd:0,state:'intro',t:0,tp:300,alpha:1,face:-1,hurt:0,nextSpawn:.95,ghost:st.hp,minis:WORLD.ks?WORLD.ks.minis:[]};
-  const b=WORLD.ks;b.y=Math.min(b.y,(WORLD.surf[Math.floor(x/TS)]-70)*TS);
-  WORLD.ksBanner={t:240,text:'史萊姆首領 甦醒了！'};SFX.roar&&SFX.roar();}
-function ksBox(b){const w=104*b.sz,h=78*b.sz;return {x:b.x-w/2,y:b.y-h,w,h};}
-function ksDespawn(msg){const b=WORLD.ks;if(!b)return;b.gone=true;WORLD.ks=null;WORLD.ksMinis=[];if(msg){WORLD.toast=msg;WORLD.toastT=200;}WORLD.ksCool=600;}
-function ksLOS(b){const p=WP,x0=b.x,y0=b.y-40*b.sz,x1=p.x+p.w/2,y1=p.y+p.h/2,n=Math.ceil(Math.hypot(x1-x0,y1-y0)/4);
-  for(let i=1;i<n;i++){const x=x0+(x1-x0)*i/n,y=y0+(y1-y0)*i/n;if(wSolid(Math.floor(x/TS),Math.floor(y/TS)))return false;}return true;}
-function ksGroundAt(x,yFrom){const tx=Math.floor(x/TS);for(let ty=Math.floor(yFrom/TS);ty<Math.floor(yFrom/TS)+80;ty++){if(wSolid(tx,ty)&&!wSolid(tx,ty-1))return ty*TS;}return null;}
-function ksFits(x,gy,sz){const w=104*sz,h=78*sz;return !boxHits(x-w/2,gy-h-1,w,h);}
-function ksTeleDest(b){const p=WP,px=p.x+p.w/2,py=p.y+p.h;
-  if(Math.abs(px-b.x)>125*KS_TILE)return {x:px,y:py};
-  for(const [lo,hi] of [[7,10],[2,6]]){const cand=[];for(let d=lo;d<=hi;d++)for(const s of [-1,1])cand.push(px+s*d*KS_TILE);cand.sort(()=>Math.random()-.5);
-    for(const x of cand){const gy=ksGroundAt(x,py-120);if(gy!=null&&Math.abs(gy-py)<=10*KS_TILE&&ksFits(x,gy,b.sz))return {x,y:gy};}}
-  return {x:px,y:py};}
-function ksSpawnMini(x,y,canSpike){const spike=canSpike&&ksHard()&&Math.random()<.25;(WORLD.ksMinis=WORLD.ksMinis||[]).push({x,y,w:spike?20:18,h:spike?15:13,vx:(Math.random()-.5)*5,vy:-4-Math.random()*3,onG:false,t:(Math.random()*60)|0,hp:spike?40:28,mhp:spike?40:28,spike,hurt:0,face:1});}
-function ksHit(d,x,y,kb){const b=WORLD.ks;if(!b||b.state==='dead'||b.state==='intro'||b.alpha<.5)return false;
-  d=Math.max(1,Math.round(d-10/2));b.hp-=d;b.hurt=6;pop(x,y-6,d,'#ffffff');part(x,y,6,'#8ae0ff',2.2,18,1);SFX.hit();
-  const k=b.hp/b.mhp;if(k<b.nextSpawn&&b.hp>0){const n=1+((Math.random()*3)|0);for(let i=0;i<n;i++)ksSpawnMini(b.x+(Math.random()-.5)*60*b.sz,b.y-50*b.sz,true);b.nextSpawn=k-.05;}
-  if(b.hp<=0){b.hp=0;ksDie(b);}return true;}
-function ksDie(b){b.state='dead';b.t=0;addShake(12);flash=.9;flashCol='200,255,230';SFX.boom&&SFX.boom();
-  for(let i=0;i<60;i++)part(b.x+(Math.random()-.5)*90*b.sz,b.y-40*b.sz+(Math.random()-.5)*50*b.sz,1,Math.random()<.5?'#7cffc8':'#b890ff',3.5,50,2,.08);
-  const n=4+((Math.random()*4)|0);for(let i=0;i<n;i++)ksSpawnMini(b.x+(Math.random()-.5)*60,b.y-40,false);
-  WORLD.ksCrown={x:b.x,y:b.y-70*b.sz,vx:(Math.random()-.5)*3,vy:-7,onG:false};
-  // 結算：成長解鎖、主線進度、困難模式材料
-  const first=!(SAVE.beaten&&SAVE.beaten.ks);SAVE.beaten=Object.assign(SAVE.beaten||{},{ks:1});
-  const q=SAVE.quests=SAVE.quests||{};if((q.m1||0)<2)q.m1=2;
-  const got=grantBoss('slime');let mat=0;if(ksHard()){mat=3;SAVE.mat=(SAVE.mat||0)+3;}saveGame();
-  WORLD.ksBanner={t:420,text:'史萊姆首領 被擊敗了！',sub:[...got.map(u=>'解鎖【'+u.kind+'】'+u.name+(u.desc?'：'+u.desc:'')),...(mat?['困難模式獎勵：材料 ×'+mat]:[]),...(first?['回主鎮向村長報告']:[])]};}
-
-function ksTick(){const p=WP;if(WORLD.ksCool>0)WORLD.ksCool--;
-  // 觸發：玩家在野外靠近巢穴（第一次自動觸發；打倒後要在王冠祭台按 E 重打）
-  if(!WORLD.ks&&!p.wdead&&!(SAVE.beaten&&SAVE.beaten.ks)&&!(WORLD.ksCool>0)){const L=WORLD.lair,dx=Math.abs(p.x+p.w/2-L.x),dy=Math.abs(p.y+p.h-L.y);if(dx<420&&dy<200)ksSpawn(false);}
-  const b=WORLD.ks;
-  if(WORLD.ksBanner&&WORLD.ksBanner.t>0)WORLD.ksBanner.t--;
-  ksMinis();ksCrownStep();
-  if(!b)return;
-  b.t++;if(b.hurt>0)b.hurt--;b.ghost=Math.max(b.hp,b.ghost-b.mhp*.004);
-  // 離開條件：玩家倒下或跑太遠
-  if(b.state!=='dead'){if(p.wdead){ksDespawn('史萊姆首領離開了……');return;}if(Math.abs(p.x-b.x)>187.5*KS_TILE){ksDespawn('史萊姆首領離開了……');return;}}
-  const k=b.hp/b.mhp,szT=.6+.4*k;b.sz=lerp(b.sz,b.state==='dead'?b.sz:szT,.04);
-  const body=()=>{const bx=ksBox(b);return {x:bx.x,y:bx.y,w:bx.w,h:bx.h,vx:b.vx,vy:b.vy,onG:b.onG};};
-  const phys=()=>{const e=body();e.vy=Math.min(e.vy+KS_G,12);const wasAir=!b.onG,vy0=e.vy;moveBody(e,false);b.vx=e.vx;b.vy=e.vy;b.onG=e.onG;b.x=e.x+e.w/2;b.y=e.y+e.h;
-    if(b.onG&&wasAir&&vy0>3){b.sq=vy0>9?1.55:1.3;addShake(vy0>9?9:4);SFX.slam&&SFX.slam();part(b.x,b.y-2,vy0>9?28:12,'#9ad8a8',vy0>9?4:2.5,28,2);
-      if(vy0>9){for(let i=0;i<14;i++)part(b.x+(Math.random()-.5)*120*b.sz,b.y-2,1,'#6e5034',3,30,2,.15);}return true;}return false;};
-  b.sq=lerp(b.sq,b.onG?1:.86,.16);
-  if(b.state==='intro'){b.vx=0;phys();if(b.onG){b.state='cool';b.cd=60;addShake(12);}return;}
-  if(b.state==='dead'){b.t++;b.alpha=Math.max(0,1-b.t/40);if(b.t>60){WORLD.ks=null;}return;}
-  // 身體碰撞
-  {const bx=ksBox(b),c={x:p.x+p.w/2,y:p.y+p.h/2},ex=(c.x-b.x)/(bx.w/2+p.w/2),ey=(c.y-(b.y-bx.h/2))/(bx.h/2+p.h/2);if(b.alpha>.6&&ex*ex+ey*ey<1)wHurt(b.dmg,b.x);}
-  // 瞬移計時：被方塊擋住視線，或玩家腳底與史萊姆頂端相差超過 10 格
-  const pf=p.y+p.h,top=b.y-78*b.sz,need=!ksLOS(b)||Math.abs(pf-top)>10*KS_TILE;
-  if(b.state==='tpOut'){b.vx=0;phys();b.alpha=Math.max(0,1-b.t/60);if(b.t>=60){const d=ksTeleDest(b);b.x=d.x;b.y=d.y;b.vy=0;b.state='tpIn';b.t=0;part(b.x,b.y-20,20,'#b890ff',2.5,30,2);}return;}
-  if(b.state==='tpIn'){b.vx=0;phys();b.alpha=Math.min(1,b.t/30);if(b.t>=30){b.state='cool';b.cd=20;b.ai=0;b.alpha=1;}return;}
-  if(need){b.tp--;}
-  if(b.tp<=0&&b.onG){b.tp=300;b.state='tpOut';b.t=0;b.vx=0;SFX.whiff&&SFX.whiff();return;}
-  if(b.state==='cool'){if(b.onG)b.vx*=.75;phys();if(b.onG&&--b.cd<=0)b.state='ready';return;}
-  if(b.state==='ready'){const J=KS_JUMPS[b.ai%4],dir=Math.sign(p.x+p.w/2-b.x)||1;b.face=dir;
-    // 血少時跳得更遠（原版跳躍水平速度也會隨血量提升）
-    b.vy=-ksV(J.h);b.vx=dir*J.vx*(1+(1-k)*.35);b.onG=false;b.sq=.72;b.jk=J.k;b.state='air';SFX.whiff&&SFX.whiff();return;}
-  if(b.state==='air'){if(phys()||b.onG){const row=KS_CD.find(r=>k>=r[0])||KS_CD[KS_CD.length-1];b.cd=b.jk==='h'?row[2]:row[1];b.ai++;b.state='cool';b.vx=0;}return;}
-}
-function ksMinis(){const L=WORLD.ksMinis||[],p=WP,c={x:p.x+p.w/2,y:p.y+p.h/2};
-  for(const m of L){m.t++;if(m.hurt>0)m.hurt--;m.vy=Math.min(m.vy+.35,10);if(m.onG){m.vx*=.8;if(m.t%(m.spike?70:55)===0){m.vy=-5.5-Math.random()*1.5;m.vx=Math.sign(c.x-(m.x+m.w/2))*(2+Math.random());}}
-    moveBody(m,false);m.face=Math.sign(c.x-(m.x+m.w/2))||1;
-    if(m.spike&&m.onG&&m.t%120===60){const a=Math.atan2(c.y-(m.y+4),c.x-(m.x+m.w/2));for(const da of [-.25,0,.25])WORLD.ksSpikes.push({x:m.x+m.w/2,y:m.y+4,vx:Math.cos(a+da)*4.2,vy:Math.sin(a+da)*4.2,life:120});}
-    if(Math.abs(c.x-(m.x+m.w/2))<(m.w+p.w)/2&&Math.abs(c.y-(m.y+m.h/2))<(m.h+p.h)/2)wHurt(ksHard()?(m.spike?24:18):(m.spike?16:12),m.x+m.w/2);
-    if(Math.abs(m.x-p.x)>1600)m.hp=0;}
-  for(const m of L)if(m.hp<=0&&!m.dead){m.dead=true;part(m.x+m.w/2,m.y+m.h/2,14,'#7cc8ff',2.4,22,1);if(Math.random()<.33)(WORLD.pickups=WORLD.pickups||[]).push({x:m.x+m.w/2,y:m.y,vy:-3,t:0,kind:'heart'});}
-  WORLD.ksMinis=L.filter(m=>!m.dead);
-  const S_=WORLD.ksSpikes=WORLD.ksSpikes||[];for(const s of S_){s.vy+=.06;s.x+=s.vx;s.y+=s.vy;s.life--;if(wSolid(Math.floor(s.x/TS),Math.floor(s.y/TS)))s.life=0;if(Math.abs(s.x-c.x)<7&&Math.abs(s.y-c.y)<16&&wHurt(ksHard()?20:12,s.x))s.life=0;}
-  WORLD.ksSpikes=S_.filter(s=>s.life>0);
-  const P_=WORLD.pickups=WORLD.pickups||[];for(const h of P_){h.t++;h.vy=Math.min(h.vy+.3,6);h.y+=h.vy;if(wSolid(Math.floor(h.x/TS),Math.floor((h.y+3)/TS))){h.vy=0;h.y=Math.floor((h.y+3)/TS)*TS-3;}
-    const d=Math.hypot(c.x-h.x,c.y-h.y);if(d<90){h.x+=(c.x-h.x)*.12;h.y+=(c.y-h.y)*.12;}if(d<14){h.got=true;p.hp=Math.min(p.mhp,p.hp+20);pop(c.x,p.y-8,'+20','#7cff9a');SFX.swap();}if(h.t>1800)h.got=true;}
-  WORLD.pickups=P_.filter(h=>!h.got);}
-function ksCrownStep(){const k=WORLD.ksCrown;if(!k||k.onG)return;k.vy=Math.min(k.vy+.35,10);k.x+=k.vx;k.y+=k.vy;const gy=ksGroundAt(k.x,k.y-10);if(gy!=null&&k.y>=gy){k.y=gy;k.onG=true;part(k.x,k.y,10,'#ffe9a8',2,20,1);}}
-// 武器打到 Boss／小史萊姆
-function ksMelee(c,aim){const b=WORLD.ks;
-  if(b){const bx=ksBox(b),cx_=b.x,cy_=b.y-bx.h/2,d=Math.hypot(cx_-c.x,cy_-c.y)-Math.min(bx.w,bx.h)/2,a=Math.atan2(cy_-c.y,cx_-c.x);if(d<52&&Math.abs(angDiff(a,aim))<1.5)ksHit(WP.cls==='melee'?30:18,c.x+Math.cos(aim)*30,c.y+Math.sin(aim)*30);}
-  for(const m of WORLD.ksMinis||[]){const mx=m.x+m.w/2,my=m.y+m.h/2,d=Math.hypot(mx-c.x,my-c.y),a=Math.atan2(my-c.y,mx-c.x);if(d<58&&Math.abs(angDiff(a,aim))<1.4){m.hp-=24;m.hurt=8;m.vx=Math.cos(aim)*4;m.vy=-3;pop(mx,m.y-4,24,'#ffffff');}}}
-function ksShot(s){const b=WORLD.ks;if(b){const bx=ksBox(b);if(s.x>bx.x&&s.x<bx.x+bx.w&&s.y>bx.y&&s.y<bx.y+bx.h){ksHit(s.dmg,s.x,s.y);return true;}}
-  for(const m of WORLD.ksMinis||[])if(s.x>m.x&&s.x<m.x+m.w&&s.y>m.y&&s.y<m.y+m.h){m.hp-=s.dmg;m.hurt=8;pop(m.x+m.w/2,m.y-4,s.dmg,'#ffffff');return true;}return false;}
-{const _wa=worldAttack;worldAttack=function(p,aim,c){_wa(p,aim,c);if(p.weapon==='katana')ksMelee(c,aim);};}
-{const _ws=worldShots;worldShots=function(){for(const s of WORLD.shots)if(s.life>0&&ksShot(s))s.life=0;_ws();};}
-{const _wn=worldNear;worldNear=function(){const r=_wn();const k=WORLD.ksCrown;if(k&&k.onG&&!WORLD.ks&&Math.abs(WP.x+WP.w/2-k.x)<40&&Math.abs(WP.y+WP.h-k.y)<50)return {kind:'crown',a:{x:k.x,y:k.y,label:'史萊姆首領（重打）'}};return r;};}
-{const _wal=worldAltar;worldAltar=function(a){if(a.label==='史萊姆首領（重打）'){ksSpawn(true);return;}_wal(a);};}
-{const _wu=worldUpdate;worldUpdate=function(){_wu();if(state==='world'&&WORLD)ksTick();};}
-// 互動提示：王冠祭台走 altar 流程
-{const _wn2=worldNear;worldNear=function(){const r=_wn2();if(r&&r.kind==='crown')return {kind:'altar',a:r.a};return r;};}
-
-// ---- 繪製 ----
-function ksDrawWorld(info){const b=WORLD.ks,cx0=WCAM.x;
-  // 王冠祭台
-  const k=WORLD.ksCrown;if(k){const x=Math.round(k.x),y=Math.round(k.y);if(k.onG&&!WORLD.ks){g.fillStyle='#4a4a56';g.fillRect(x-12,y-6,24,6);g.fillStyle='#5c5c68';g.fillRect(x-8,y-10,16,4);}
-    const cy=k.onG&&!WORLD.ks?y-16-Math.sin(frameN/20)*1.5:y-6;ksCrownPix(x,cy,1);if(k.onG&&!WORLD.ks){gg.save();gg.translate(-Math.round(WCAM.x),-Math.round(WCAM.y));gg.globalAlpha=.4+.15*Math.sin(frameN/18);gg.drawImage(soft(20,'rgba(255,230,150,.6)'),x-20,cy-22);gg.restore();}}
-  for(const m of WORLD.ksMinis||[]){const x=Math.round(m.x+m.w/2),y=Math.round(m.y+m.h),sq=m.onG?1:.85,w=m.w/2,h=m.h*sq;
-    g.fillStyle='rgba(0,0,0,.25)';g.fillRect(x-w,y-1,w*2,2);
-    g.globalAlpha=.88;g.fillStyle=m.hurt>0?'#ffffff':(m.spike?'#4a7ad0':'#4f9be0');g.beginPath();g.ellipse(x,y-1,w,h,0,Math.PI,0);g.lineTo(x+w,y-1);g.lineTo(x-w,y-1);g.fill();g.globalAlpha=1;
-    g.fillStyle='rgba(255,255,255,.45)';g.fillRect(x-w*.5,y-h*.85,3,2);g.fillStyle='#0c1020';g.fillRect(x-4+m.face*2,y-h*.55,2,3);g.fillRect(x+2+m.face*2,y-h*.55,2,3);
-    if(m.spike){g.fillStyle='#e0ecff';for(const a of [-1.1,-.55,0,.55,1.1]){const sx=x+Math.sin(a)*w*.95,sy=y-1-Math.cos(a)*h*.95;g.fillRect(Math.round(sx-1+Math.sin(a)*2),Math.round(sy-Math.cos(a)*3),2,3);}}
-    if(m.hp<m.mhp){g.fillStyle='#200';g.fillRect(x-w,y-h-6,w*2,2);g.fillStyle='#6f6';g.fillRect(x-w,y-h-6,w*2*m.hp/m.mhp,2);}}
-  for(const s of WORLD.ksSpikes||[]){g.fillStyle='#e0ecff';g.fillRect(Math.round(s.x-1),Math.round(s.y-1),3,3);}
-  for(const h of WORLD.pickups||[]){const bob=Math.sin(h.t/10)*1.5;g.drawImage(heartSpr('#ff4060','#a01428'),Math.round(h.x-4.5),Math.round(h.y-8+bob));}
-  if(!b)return;
-  // 落地預告影子
-  if(b.state==='intro'){const gy=ksGroundAt(b.x,b.y-20);if(gy!=null){const a=Math.min(.5,(gy-b.y<0?0:1)*.5);g.fillStyle=`rgba(0,0,0,${a*.6})`;g.beginPath();g.ellipse(b.x,gy,60,6,0,0,TAU);g.fill();}}
-  const zs=b.sz,sq=b.sq||1,w=52*zs*sq,h=74*zs/sq,x=Math.round(b.x),y=Math.round(b.y);
-  g.save();g.globalAlpha=b.alpha;
-  g.fillStyle='rgba(0,0,0,.3)';g.beginPath();g.ellipse(x,y,w*1.05,5,0,0,TAU);g.fill();
-  const hit=b.hurt>0,body=hit?'#e8fff4':'#4fc8a8',dark='#2a7a6a',light='#a8f0d8';
-  const shape=(ww,hh)=>{g.beginPath();g.moveTo(x-ww,y);g.bezierCurveTo(x-ww,y-hh*.55,x-ww*.82,y-hh,x,y-hh);g.bezierCurveTo(x+ww*.82,y-hh,x+ww,y-hh*.55,x+ww,y);g.closePath();};
-  g.fillStyle='#0a2420';shape(w+2,h+2);g.fill();
-  const gr=g.createLinearGradient(0,y-h,0,y);gr.addColorStop(0,hit?'#ffffff':'#7fe6c8');gr.addColorStop(1,hit?'#d8fff0':'#2f9e86');g.globalAlpha=b.alpha*.9;g.fillStyle=gr;shape(w,h);g.fill();g.globalAlpha=b.alpha;
-  // 內部：混沌之核（被侵蝕的紫光）
-  const pulse=.5+.5*Math.sin(frameN/10),cr=10*zs*(1+pulse*.15);g.fillStyle='rgba(60,20,90,.55)';g.beginPath();g.arc(x,y-h*.42,cr*1.5,0,TAU);g.fill();g.fillStyle='#b890ff';g.beginPath();g.arc(x,y-h*.42,cr*.7,0,TAU);g.fill();
-  g.fillStyle='rgba(255,255,255,.5)';g.beginPath();g.ellipse(x-w*.42,y-h*.78,w*.16,h*.08,-.5,0,TAU);g.fill();g.fillRect(x-w*.55,y-h*.6,3,3);
-  g.fillStyle=dark;g.fillRect(x-w+2,y-5,w*2-4,3);
-  // 眼睛
-  const ex=x+b.face*w*.22,ey=y-h*.66;g.fillStyle='#0c0a18';g.fillRect(ex-12*zs,ey-5*zs,8*zs,9*zs);g.fillRect(ex+4*zs,ey-5*zs,8*zs,9*zs);g.fillStyle='#e0b0ff';g.fillRect(ex-9*zs,ey-3*zs,3*zs,4*zs);g.fillRect(ex+7*zs,ey-3*zs,3*zs,4*zs);
-  if(b.state!=='dead')ksCrownPix(x,y-h-2,zs*1.3);
-  g.restore();
-  gg.save();gg.translate(-Math.round(WCAM.x),-Math.round(WCAM.y));gg.globalAlpha=b.alpha*(.45+.25*pulse);gg.drawImage(soft(Math.round(30*zs),'rgba(170,110,255,.7)'),x-Math.round(30*zs),y-h*.42-Math.round(30*zs));gg.restore();}
-function ksCrownPix(x,y,s){const S2=v=>Math.round(v*s);g.fillStyle='#6a4a10';g.fillRect(x-S2(12)-1,y-S2(8)-1,S2(24)+2,S2(8)+2);g.fillStyle='#e8c040';g.fillRect(x-S2(12),y-S2(8),S2(24),S2(8));
-  for(const k of [-10,-1,8])g.fillRect(x+S2(k),y-S2(14),S2(4),S2(6));g.fillStyle='#fff0a0';g.fillRect(x-S2(12),y-S2(8),S2(24),Math.max(1,S2(1.5)));
-  g.fillStyle='#ff4a6a';g.fillRect(x-S2(2),y-S2(6),S2(4),S2(4));g.fillStyle='#5ac8ff';g.fillRect(x-S2(9),y-S2(5),S2(3),S2(3));g.fillRect(x+S2(6),y-S2(5),S2(3),S2(3));}
-function ksUI(){const b=WORLD.ks;
-  for(const q of pops){const x=q.x-WCAM.x,y=q.y-WCAM.y;cx.globalAlpha=Math.min(1,q.life/20);T(q.txt,x,y,q.big?9:7,q.col);cx.globalAlpha=1;}
-  if(b&&b.state!=='dead'){const bw=300,bx=W/2-bw/2,by=H-34;R(bx-2,by-2,bw+4,14,'rgba(8,10,20,.85)');R(bx,by,bw,10,'#2a0f18');R(bx,by,bw*b.ghost/b.mhp,10,'#e8e8f0');R(bx,by,bw*b.hp/b.mhp,10,'#5fd8b0');R(bx,by,bw*b.hp/b.mhp,2,'#b8ffe8');
-    T('史萊姆首領',W/2,by-9,7.5,'#ffffff');T(Math.ceil(b.hp)+' / '+b.mhp,bx+bw,by-9,5.5,'#cfe8e0','right');}
-  const bn=WORLD.ksBanner;if(bn&&bn.t>0){const a=Math.min(1,bn.t/40);cx.globalAlpha=a;T(bn.text,W/2,92,13,bn.sub?'#ffe9a8':'#c8a0ff');(bn.sub||[]).forEach((t,i)=>T(t,W/2,112+i*12,7,'#e8e8f0'));cx.globalAlpha=1;}}
-{const _ui=drawWorldUI;drawWorldUI=function(){_ui();if(!(WORLD.map&&WORLD.map.open))ksUI();};}
-// 讓 Boss 戰時切換 Boss 音樂
-{const _st=smpTrack;smpTrack=function(){if(state==='world'&&WORLD&&WORLD.ks&&WORLD.ks.state!=='dead')return 7;return _st();};}
-
-// =====================================================================
-//  氛圍：體積光（光柱）、霧帶、漂浮粒子、色調、暗角（參考實機氛圍圖）
-// =====================================================================
-const ATMO={parts:[],vig:null};
-function biomeK(cx0){const T0=WORLD.town,tcx=(T0.x0+T0.x1)/2*TS,half=(T0.x1-T0.x0)/2*TS;const d=Math.abs(cx0+W/2-tcx);return clamp(1-(d-half)/500,0,1);} // 1=主城 0=野外
-function duskK(t){return Math.max(0,1-Math.abs(t-.24)*9)+Math.max(0,1-Math.abs(t-.76)*9);}
-function atmoBack(info,cx0,cy0){const surfS=WORLD.town.y*TS-cy0,tb=biomeK(cx0),day=1-info.night;
-  // 地平線霧帶
-  const fy=surfS*.45+(1-.45)*H*.7-40,col=tb>.5?lerpC([250,190,150],[60,60,90],info.night):lerpC([200,230,220],[40,60,80],info.night);
-  const gr=g.createLinearGradient(0,fy-90,0,fy+60);gr.addColorStop(0,`rgba(${col},0)`);gr.addColorStop(.6,`rgba(${col},${.28+.1*day})`);gr.addColorStop(1,`rgba(${col},0)`);g.fillStyle=gr;g.fillRect(0,fy-90,W,150);
-  // 黃昏時太陽附近的放射光
-  const dk=duskK(info.t);if(dk>0){const a=info.sunUp?(info.t-.2)/.6:0,ox=W*.1+a*W*.8,oy=H*.55-Math.sin(a*Math.PI)*H*.42;g.save();g.globalCompositeOperation='lighter';
-    for(let i=0;i<9;i++){const an=-Math.PI/2+(i-4)*.32+Math.sin(frameN/400+i)*.03;g.globalAlpha=.05*dk;g.fillStyle='#ffb070';g.beginPath();g.moveTo(ox,oy);g.lineTo(ox+Math.cos(an-.05)*700,oy+Math.sin(an-.05)*700);g.lineTo(ox+Math.cos(an+.05)*700,oy+Math.sin(an+.05)*700);g.fill();}g.restore();}}
-function atmoFront(info,cx0,cy0){const tb=biomeK(cx0),day=1-info.night,surfS=WORLD.surf[clamp(Math.floor((cx0+W/2)/TS),0,WORLD.w-1)]*TS-cy0,under=surfS<-40;
-  g.save();
-  // 光柱（森林最明顯；主城白天淡、黃昏暖色）
-  if(!under&&day>.15){g.globalCompositeOperation='lighter';const base=(1-tb)*.11+tb*.05,dk=duskK(info.t),colR=tb>.5&&dk>0?'255,190,120':'210,240,230';
-    for(let i=0;i<6;i++){const wx=i*520+180,sx=((wx-cx0*.7)%(W+400)+W+400)%(W+400)-200,tw=36+(i%3)*22,sway=Math.sin(frameN/300+i*1.7)*18,a=base*day*(.6+.4*Math.sin(frameN/220+i*2.3));
-      const gr=g.createLinearGradient(0,-20,0,surfS+40);gr.addColorStop(0,`rgba(${colR},${a})`);gr.addColorStop(.7,`rgba(${colR},${a*.5})`);gr.addColorStop(1,`rgba(${colR},0)`);g.fillStyle=gr;
-      g.beginPath();g.moveTo(sx,-20);g.lineTo(sx+tw,-20);g.lineTo(sx+tw*2.6+sway+80,surfS+40);g.lineTo(sx+tw*.6+sway+80,surfS+40);g.fill();}}
-  g.restore();g.save();
-  // 漂浮粒子：森林落葉、光中的塵埃、夜晚螢火蟲、主城黃昏的火星
-  const P_=ATMO.parts;if(P_.length<70&&frameN%3===0){const r=Math.random();let q;
-    if(under)q={k:'dust',x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.1,vy:-.05,life:240};
-    else if(info.night>.5&&tb<.5&&r<.5)q={k:'fly',x:Math.random()*W,y:surfS-20-Math.random()*120,vx:0,vy:0,life:300,ph:Math.random()*9};
-    else if(tb<.5&&r<.6)q={k:'leaf',x:Math.random()*W+40,y:-10,vx:-.3-Math.random()*.5,vy:.4+Math.random()*.4,life:500,ph:Math.random()*9,c:['#4f8a3a','#6aa848','#3a6a2e','#8aa040'][(Math.random()*4)|0]};
-    else if(tb>=.5&&(info.night>.3||duskK(info.t)>.2)&&r<.5)q={k:'ember',x:Math.random()*W,y:surfS-Math.random()*60,vx:(Math.random()-.5)*.3,vy:-.3-Math.random()*.4,life:200};
-    else q={k:'dust',x:Math.random()*W,y:Math.random()*Math.max(40,surfS),vx:(Math.random()-.5)*.15,vy:-.03,life:260};
-    q.max=q.life;q.ox=cx0;q.oy=cy0;P_.push(q);}
-  for(const q of P_){q.life--;q.x+=q.vx-(cx0-q.ox)*.0;q.y+=q.vy;
-    if(q.k==='leaf'){q.ph+=.05;q.x+=Math.sin(q.ph)*.6;}if(q.k==='fly'){q.ph+=.03;q.x+=Math.sin(q.ph*1.3)*.4;q.y+=Math.cos(q.ph)*.3;}
-    const sx=q.x-(cx0-q.ox),sy=q.y-(cy0-q.oy),a=Math.min(1,q.life/40,(q.max-q.life)/40);if(sx<-20||sx>W+20||sy<-20||sy>H+20){q.life=0;continue;}
-    if(q.k==='leaf'){g.globalAlpha=.8*a;g.fillStyle=q.c;g.fillRect(Math.round(sx),Math.round(sy),2,Math.sin(q.ph)>0?1:2);}
-    else if(q.k==='dust'){g.globalAlpha=.35*a;g.fillStyle='#f0f4ff';g.fillRect(Math.round(sx),Math.round(sy),1,1);}
-    else if(q.k==='fly'){const f=.5+.5*Math.sin(q.ph*4);g.globalAlpha=a*f;g.fillStyle='#e8ff9a';g.fillRect(Math.round(sx),Math.round(sy),1,1);gg.globalAlpha=a*f*.7;gg.drawImage(soft(5,'rgba(220,255,140,.8)'),sx-5,sy-5);gg.globalAlpha=1;}
-    else if(q.k==='ember'){g.globalAlpha=.85*a;g.fillStyle=q.life%20<10?'#ffb050':'#ff7030';g.fillRect(Math.round(sx),Math.round(sy),1,1);}}
-  ATMO.parts=P_.filter(q=>q.life>0);g.globalAlpha=1;
-  // 色調：森林偏青綠、主城黃昏偏暖、地底偏冷
-  const dk=duskK(info.t);
-  if(under){g.fillStyle='rgba(10,20,40,.18)';g.fillRect(0,0,W,H);}
-  else{if(tb<1){const fk=clamp(1-(cx0+W/2)/(WORLD.w*TS*.38),0,1);g.fillStyle=`rgba(14,50,46,${(.08+.16*fk)*(1-tb)})`;g.fillRect(0,0,W,H);}if(tb>0&&dk>0){g.globalCompositeOperation='overlay';g.fillStyle=`rgba(255,150,90,${.22*dk*tb})`;g.fillRect(0,0,W,H);g.globalCompositeOperation='source-over';}}
-  // 暗角
-  if(!ATMO.vig){const c=mk(W,H),x=c.getContext('2d'),gr=x.createRadialGradient(W/2,H/2,H*.35,W/2,H/2,H*.95);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,8,.55)');x.fillStyle=gr;x.fillRect(0,0,W,H);ATMO.vig=c;}
-  g.drawImage(ATMO.vig,0,0);g.restore();}
+const BOSS_LIST=[
+  {line:'主線一',list:['史萊姆首領','哥布林首領','狼族人首領','叛國騎士','拜龍教會教主','龍族人首領','龍 1','龍 2','龍 3','受混沌侵蝕心智的龍王']},
+  {line:'主線二',list:['帝國精兵','巨型混沌機兵','帝國將軍 1','帝國女將軍 2','鏡中銀影','帝國將軍 3','混沌異種混體＋皇女']},
+  {line:'主線三',list:['混沌異種 1','守門者騎士','受侵蝕的混沌守門者騎士','沉淵族士兵','淵海混沌異種','受侵蝕的沉淵族士兵','沉淵族公主','（待定）','掌鏡人','守門者族首領']},
+  {line:'最終主線',list:['混沌使卡俄斯']}];
+const INV={open:false,tab:'bag'};
+function invToggle(){INV.open?invClose():invOpen();}
+function invOpen(){INV.open=true;invUI();SFX.swap();}
+function invClose(){INV.open=false;const r=document.getElementById('invRoot');if(r)r.style.display='none';}
+(function(){const st=document.createElement('style');st.textContent=`
+#invRoot{position:fixed;inset:0;display:none;z-index:30;pointer-events:none;font-family:"Noto Serif TC","Songti TC","PMingLiU",serif;color:#e8e8f2}
+#invRoot .panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,94vw);height:min(470px,86vh);padding:16px 18px;pointer-events:auto;display:flex;flex-direction:column}
+#invRoot .tabs{display:flex;gap:8px;justify-content:center;margin-bottom:12px}
+#invRoot .tabs button{padding:6px 18px;border:1px solid #6a6880;background:#15141f;color:#fff;font:15px "Noto Serif TC",serif;letter-spacing:.25em;border-radius:3px;cursor:pointer}
+#invRoot .tabs button.sel{background:#e8e8f2;color:#111;border-color:#fff}
+#invRoot .body{flex:1;overflow:auto}
+#invRoot .hint{text-align:center;font-size:11.5px;color:#8a88a0;margin-top:8px;letter-spacing:.1em}
+.bagwrap{display:flex;gap:18px;height:100%}.bagwrap .me{width:170px;flex:none;border:1px solid #3a3850;background:#0e0d16;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.bagwrap .me canvas{image-rendering:pixelated;width:150px;height:180px}.bagwrap .me b{letter-spacing:.15em}.bagwrap .me small{color:#a8a6c0}
+.grid{display:grid;grid-template-columns:repeat(6,58px);grid-auto-rows:58px;gap:6px;align-content:start}
+.slot{border:1px solid #4a4860;background:#12111a;position:relative;display:flex;align-items:center;justify-content:center;font-size:24px;color:#cfcfdc;cursor:pointer}
+.slot.eq{border-color:#fff;box-shadow:0 0 10px rgba(210,200,255,.35)}.slot small{position:absolute;bottom:2px;left:0;right:0;text-align:center;font-size:10px;color:#a8a6c0}.slot i{position:absolute;top:2px;left:4px;font-style:normal;font-size:10px;color:#8a88a0}
+.tree{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.tree .col h3{margin:0 0 8px;text-align:center;font-size:14px;letter-spacing:.2em;color:#b8a0ff}
+.node{position:relative;margin:0 auto 14px;width:132px;padding:6px 6px;border:1px solid #4a4860;background:#12111a;text-align:center;font-size:12px}
+.node:not(:last-child)::after{content:'';position:absolute;left:50%;bottom:-15px;width:1px;height:14px;background:#4a4860}
+.node b{display:block;font-size:12.5px;color:#cfcfdc}.node small{color:#7a7890;font-size:10.5px}
+.bl{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.bl .col h3{margin:0 0 8px;text-align:center;font-size:14px;letter-spacing:.2em;color:#b8a0ff}
+.brow{display:flex;align-items:center;gap:8px;padding:5px 8px;margin-bottom:5px;border:1px solid #3a3850;background:#12111a;font-size:12.5px}
+.brow i{font-style:normal;width:1.6em;color:#8a88a0;font-family:ui-monospace,monospace}.brow span{flex:1}.brow button{padding:2px 8px;border:1px solid #4a4860;background:#15141f;color:#7a7890;font:11px "Noto Serif TC",serif;border-radius:3px;cursor:not-allowed}`;
+  document.head.appendChild(st);const r=document.createElement('div');r.id='invRoot';r.innerHTML='<div class="panel lace"><div class="tabs"><button data-t="bag">背包</button><button data-t="tree">技能樹</button><button data-t="boss">召喚 Boss</button></div><div class="body" id="invBody"></div><div class="hint">Tab 或 Esc 關閉</div></div>';
+  document.body.appendChild(r);for(const b of r.querySelectorAll('.tabs button'))b.onclick=()=>{INV.tab=b.dataset.t;invUI();SFX.swap();};
+  addEventListener('keydown',e=>{if(state==='world'&&INV.open&&e.key==='Escape'){invClose();e.stopImmediatePropagation();}},true);})();
+function invUI(){const r=document.getElementById('invRoot');if(!r)return;r.style.display=INV.open?'block':'none';if(!INV.open)return;
+  for(const b of r.querySelectorAll('.tabs button'))b.classList.toggle('sel',b.dataset.t===INV.tab);const B=document.getElementById('invBody'),ch=typeof curChar==='function'?curChar():null;
+  if(INV.tab==='bag'){const items=[['katana','⚔','太刀'],['gun','▬','手槍'],['bow','➶','弓']];let h='<div class="bagwrap"><div class="me"><canvas id="invMe" width="60" height="72"></canvas><b>'+(ch?esc(ch.name):'')+'</b><small>'+tr(CLS_NAME[PCLS]||'')+'　·　'+tr((OUTFITS[WP.outfit]||{}).name||'')+'</small></div><div class="grid">';
+    for(let i=0;i<30;i++){const it=items[i];h+=it?'<div class="slot'+(WP.weapon===it[0]?' eq':'')+'" data-w="'+it[0]+'"><i>'+(i+1)+'</i>'+it[1]+'<small>'+it[2]+'</small></div>':'<div class="slot"></div>';}
+    B.innerHTML=h+'</div></div>';for(const s of B.querySelectorAll('.slot[data-w]'))s.onclick=()=>{WP.weapon=s.dataset.w;SFX.swap();invUI();};
+    const c=document.getElementById('invMe'),x=c.getContext('2d');x.imageSmoothingEnabled=false;const rg=outfitRig(WP.outfit),q=Object.assign({},WP,{vx:0,sw:null,onG:true,face:1,rx:0,ry:0});q.hair=makeChain(9,0,-30);for(let i=0;i<40;i++)stepChain(q.hair,-2,-33,3.3*PS,.22,.86,0);
+    const out=rg.render(z=>drawPlayerRig(z,q,WP.pal));x.drawImage(out,rg.ox-30,rg.oy-66,60,72,0,0,60,72);}
+  else if(INV.tab==='tree'){B.innerHTML='<div class="tree">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.filter(n=>n!=='（待定）').map(n=>'<div class="node">🔒<b>'+n+'</b><small>打敗後解鎖・招式待設計</small></div>').join('')+'</div>').join('')+'</div>';}
+  else{let i=0;B.innerHTML='<div class="bl">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.map(n=>'<div class="brow"><i>'+String(++i).padStart(2,'0')+'</i><span>'+n+'</span><button disabled>尚未製作</button></div>').join('')+'</div>').join('')+'</div>';}
+  try{langApply&&0;}catch(e){}}
 </script>
 <script>
 // =====================================================================
@@ -3825,8 +3490,7 @@ const CW={sel:null,wsel:null,newCls:'melee',wsize:'m',del:null};
   <div class="cwbtns"><button class="go" id="cwEnter">進入世界</button><button id="cwWNew">建立世界</button><button class="warn" id="cwWDel">刪除</button><button id="cwWBack">返回</button></div></div>
 <div id="tWNew" class="lace"><h2>建立世界</h2>
   <div class="cwf"><label>世界名稱</label><input id="cwWName" maxlength="16" placeholder="例如：銀月之地"></div>
-  <div class="cwf"><label>世界大小</label><button class="opt" disabled>小型<small>開發中</small></button><button class="opt sel" data-sz="m">中型<small>1600 × 600（demo）</small></button><button class="opt" disabled>大型<small>開發中</small></button></div>
-  <div class="cnote" style="text-align:center;font-size:12px;color:#a8a6c0;margin:6px 0 0">世界地形固定（每個世界都一樣），只有進度各自記錄</div>
+  <div class="cnote" style="text-align:center;font-size:12px;color:#a8a6c0;margin:6px 0 0">橫版卷軸世界：從野外營地出發，每個世界各自記錄進度</div>
   <div class="cwbtns"><button class="go" id="cwWMake">建立世界</button><button id="cwWNBack">返回</button></div></div>`;
   while(d.firstElementChild)root.appendChild(d.firstElementChild);
   // 建立角色面板：加上名稱欄、改成「選職業 → 建立」
@@ -3863,7 +3527,7 @@ function cwUI(){const $=id=>document.getElementById(id),P_=TM.panel;
     for(const b of L.querySelectorAll('.cwrow'))b.onclick=()=>{saveGame();SAVE.cur=b.dataset.id;CW.del=null;cwLink();saveGame();tmUI();};
     $('cwLook').style.display='none';$('cwPlay').disabled=!curChar();$('cwDel').disabled=!curChar();$('cwDel').textContent=tr(CW.del&&CW.del===SAVE.cur?'確定刪除？':'刪除');}
   if(P_==='worlds'){const L=$('cwWorlds'),ws=SAVE.worlds||[];
-    L.innerHTML=ws.length?ws.map(w=>'<button class="cwrow'+(w.id===SAVE.curW?' sel':'')+'" data-id="'+w.id+'"><span class="ic">🌍</span><span><b>'+esc(w.name)+'</b><small>'+tr('中型')+' '+w.w+' × '+w.h+'　·　'+tr(qText(w.quests))+'</small></span></button>').join(''):'<div class="cwempty">'+tr('還沒有世界，先建立一個吧')+'</div>';
+    L.innerHTML=ws.length?ws.map(w=>'<button class="cwrow'+(w.id===SAVE.curW?' sel':'')+'" data-id="'+w.id+'"><span class="ic">🌍</span><span><b>'+esc(w.name)+'</b><small>'+tr(qText(w.quests))+'</small></span></button>').join(''):'<div class="cwempty">'+tr('還沒有世界，先建立一個吧')+'</div>';
     for(const b of L.querySelectorAll('.cwrow'))b.onclick=()=>{saveGame();SAVE.curW=b.dataset.id;CW.del=null;cwLink();saveGame();tmUI();};
     $('cwEnter').disabled=!curW();$('cwWDel').disabled=!curW();$('cwWDel').textContent=tr(CW.del&&CW.del===SAVE.curW?'確定刪除？':'刪除');}
   if(P_==='cls'){for(const c of document.querySelectorAll('#tCls button.card'))c.classList.toggle('sel',c.dataset.c===CW.newCls);}
