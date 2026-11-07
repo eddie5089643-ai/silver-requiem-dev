@@ -2300,7 +2300,7 @@ function handleInput(){
   if(state==='title')titleInput();
   else if(state==='fight'){if(paused){const vr=volRectP(),m_=window.__m;if(m_.l&&(m_.lp?volHit(vr,m_.x,m_.y):window.__volDrag)){window.__volDrag=true;setVol((m_.x-vr.x)/vr.w);}if(!m_.l)window.__volDrag=false;}if((pressed['escape']||pressed['p'])&&!MP.on)paused=!paused;if(MP.on)paused=false;if(paused&&pressed['t']){paused=false;toTitle();}}
   else if(state==='dead'){if(endT>40&&(pressed['r']||pressed['enter']))startFight(bossSel);if(pressed['escape'])(TOWN.inFight?townEnter:toTitle)();}
-  else if(state==='win'){if(endT===1){SAVE.beaten[bossSel+'_'+diffI]=true;winMat=GAMEDIFF===1?3:0;if(winMat)SAVE.mat=(SAVE.mat||0)+winMat;saveGame();winUnl=grantBoss(BOSS_KEY[bossSel]||'mirror');{const q=SAVE.quests=SAVE.quests||{},k=BOSS_KEY[bossSel];if(k==='slime'&&(q.m1||0)<2)q.m1=2;if(k==='goblin'&&(q.m1||0)<3)q.m1=3;saveGame();}}
+  else if(state==='win'){if(endT===1){SAVE.beaten[bossSel+'_'+diffI]=true;winMat=GAMEDIFF===1?3:0;if(winMat)SAVE.mat=(SAVE.mat||0)+winMat;saveGame();winUnl=grantBoss(BOSS_KEY[bossSel]||'mirror');{const q=SAVE.quests=SAVE.quests||{},k=BOSS_KEY[bossSel];if(k==='slime'&&(q.m1||0)<2)q.m1=2;if(k==='goblin'&&(q.m1||0)<3)q.m1=3;if(k==='mirror')q.m2=2;saveGame();}}
     if(endT>60&&pressed['r'])startFight(bossSel);if(endT>60&&(pressed['enter']||pressed['escape']))(TOWN.inFight?townEnter:toTitle)();}
 }
 let last=performance.now(),acc=0;
@@ -2791,8 +2791,8 @@ function tmUI(){const r=document.getElementById('tmenu');if(!r)return;const show
 <div id="tBoss" class="lace"><h2>選擇 Boss</h2><div class="clsline" id="tClsLine"></div>
   <div class="cards">
   <button class="card" data-b="0"><img id="tBossImg" alt=""><b>鏡中銀影</b><small>The Silver Reflection</small></button>
-  <div class="card lock"><span class="q">？</span><b>？？？</b><small>敬請期待</small></div>
-  <div class="card lock"><span class="q">？</span><b>？？？</b><small>敬請期待</small></div></div>
+  <button class="card" data-b="1"><span class="q" style="color:#8ee07a">●</span><b>史萊姆首領</b><small>Slime Lord</small></button>
+  <button class="card" data-b="2"><span class="q" style="color:#ff8a4a">♜</span><b>哥布林首領</b><small>Goblin Chieftain</small></button></div>
   <button class="back" id="tBossBack">返回</button></div>`;
   document.body.appendChild(root);const $=id=>document.getElementById(id);
   $('tSingle').onclick=()=>tmSingle();
@@ -2941,7 +2941,7 @@ const NPCS=[
 const SIGNS=[
   {x:200,text(){return (SAVE.quests||{}).m1?'西方森林：挑戰史萊姆首領':'西方森林（先和村長談談）';},act(){if(!(SAVE.quests||{}).m1)return false;TOWN.inFight=true;TOWN.backX=230;startFight(1);}},
   {x:90,text(){return ((SAVE.quests||{}).m1||0)>=2?'森林深處：挑戰哥布林首領':'森林深處（先打倒史萊姆首領）';},act(){if(((SAVE.quests||{}).m1||0)<2)return false;TOWN.inFight=true;TOWN.backX=120;startFight(2);}},
-  {x:1880,text:'試煉之鏡（demo 測試）：挑戰鏡中銀影',act(){TOWN.inFight=true;TOWN.backX=1840;startFight(0);}},
+  {x:1880,text:'東方・帝國的鏡之試煉（主線二中期）：挑戰鏡中銀影',act(){TOWN.inFight=true;TOWN.backX=1840;startFight(0);}},
 ];
 function townRng(seed){let s=seed;return()=>{s=(s*9301+49297)%233280;return s/233280;};}
 function townBuild(){
@@ -3043,7 +3043,8 @@ function drawTownUI(){
   T('任務',14,qy,7,'#b8a0ff','left');qy+=12;
   if(q.m1){T('主線一：森林的異變 — '+(q.m1===1?'討伐史萊姆首領':q.m1===2?'討伐哥布林首領':'後續開發中'),14,qy,6.5,'#e8e8f0','left');qy+=11;}
   else{T('和村長談談',14,qy,6.5,'#9a98b0','left');qy+=11;}
-  if(r.m2){T('傳聞：東邊的帝國在挖古代遺跡',14,qy,6,'#8a88a0','left');qy+=10;}
+  if(q.m2===2){T('主線二：鏡中銀影已擊敗 — 後續開發中',14,qy,6.5,'#e8e8f0','left');qy+=11;}
+  else if(r.m2){T('主線二（demo）：到東邊的鏡之試煉挑戰鏡中銀影',14,qy,6.5,'#e8e8f0','left');qy+=11;}
   if(r.m3){T('傳聞：北邊的湖底傳來歌聲',14,qy,6,'#8a88a0','left');qy+=10;}
   T('A/D 移動　W 跳　E 對話　Esc 標題',W/2,H-10,6,'rgba(220,220,235,.55)');
   if(TOWN.toastT>0){const a=Math.min(1,TOWN.toastT/30);cx.globalAlpha=a;R(W/2-150,56,300,20,'rgba(10,8,20,.8)');R(W/2-150,56,300,1,'#b8a0ff');T(TOWN.toast,W/2,66,7,'#ffffff');cx.globalAlpha=1;}
