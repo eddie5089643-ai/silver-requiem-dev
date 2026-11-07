@@ -3429,7 +3429,7 @@ function invClose(){INV.open=false;const r=document.getElementById('invRoot');if
 .bl{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.bl .col h3{margin:0 0 8px;text-align:center;font-size:14px;letter-spacing:.2em;color:#b8a0ff}
 .brow{display:flex;align-items:center;gap:8px;padding:5px 8px;margin-bottom:5px;border:1px solid #3a3850;background:#12111a;font-size:12.5px}
 .arenabar{display:flex;align-items:center;gap:12px;justify-content:center;margin:0 0 12px;font-size:13px;color:#cfcfdc}.arenabar button{padding:6px 16px;border:1px solid #fff;background:#e8e8f2;color:#111;font:14px "Noto Serif TC",serif;letter-spacing:.2em;border-radius:3px;cursor:pointer}.arenabar button:hover{background:#fff}
-.brow i{font-style:normal;width:1.6em;color:#8a88a0;font-family:ui-monospace,monospace}.brow span{flex:1}.brow button{padding:2px 8px;border:1px solid #4a4860;background:#15141f;color:#7a7890;font:11px "Noto Serif TC",serif;border-radius:3px;cursor:not-allowed}`;
+.brow i{font-style:normal;width:1.6em;color:#8a88a0;font-family:ui-monospace,monospace}.brow span{flex:1}.brow button{padding:2px 8px;border:1px solid #4a4860;background:#15141f;color:#7a7890;font:11px "Noto Serif TC",serif;border-radius:3px;cursor:not-allowed}.brow button.sum{border-color:#fff;background:#e8e8f2;color:#111;cursor:pointer;letter-spacing:.2em}.brow button.sum:hover{background:#fff}`;
   document.head.appendChild(st);const r=document.createElement('div');r.id='invRoot';r.innerHTML='<div class="panel lace"><div class="tabs"><button data-t="bag">背包</button><button data-t="tree">技能樹</button><button data-t="boss">召喚 Boss</button></div><div class="body" id="invBody"></div><div class="hint">Tab 或 Esc 關閉</div></div>';
   document.body.appendChild(r);for(const b of r.querySelectorAll('.tabs button'))b.onclick=()=>{INV.tab=b.dataset.t;invUI();SFX.swap();};
   addEventListener('keydown',e=>{if(state==='world'&&INV.open&&e.key==='Escape'){invClose();e.stopImmediatePropagation();}},true);})();
@@ -3444,7 +3444,7 @@ function invUI(){const r=document.getElementById('invRoot');if(!r)return;r.style
     const c=document.getElementById('invMe'),x=c.getContext('2d');x.imageSmoothingEnabled=false;const PQ=inArena()?P:WP,rg=outfitRig(PQ.outfit||'adventurer'),q=Object.assign({},PQ,{vx:0,sw:null,onG:true,face:1,rx:0,ry:0});q.hair=makeChain(curHair()==='short'?4:9,0,-30);for(let i=0;i<40;i++)stepChain(q.hair,-2,-33,3.3*PS,.22,.86,0);
     const out=rg.render(z=>drawPlayerRig(z,q,PQ.pal||OUTFITS.adventurer.pal));x.drawImage(out,rg.ox-30,rg.oy-66,60,72,0,0,60,72);}
   else if(INV.tab==='tree'){B.innerHTML='<div class="tree">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.filter(n=>n!=='（待定）').map(n=>'<div class="node">🔒<b>'+n+'</b><small>打敗後解鎖・招式待設計</small></div>').join('')+'</div>').join('')+'</div>';}
-  else{let i=0;const ar=inArena();B.innerHTML='<div class="arenabar"><span>戰鬥場：鏡中銀影的地圖（目前沒有 Boss，可自由練習）</span><button id="arenaBtn">'+(ar?'退出戰鬥場':'進入戰鬥場')+'</button></div><div class="bl">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.map(n=>'<div class="brow"><i>'+String(++i).padStart(2,'0')+'</i><span>'+n+'</span><button disabled>尚未製作</button></div>').join('')+'</div>').join('')+'</div>';document.getElementById('arenaBtn').onclick=()=>{inArena()?arenaExit():arenaEnter();};}
+  else{let i=0;const ar=inArena();B.innerHTML='<div class="arenabar"><span>戰鬥場：鏡中銀影的地圖（自由練習）</span><button id="arenaBtn">'+(ar?'退出戰鬥場':'進入戰鬥場')+'</button></div><div class="bl">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.map(n=>'<div class="brow"><i>'+String(++i).padStart(2,'0')+'</i><span>'+n+'</span>'+(n in SUMMON?'<button class="sum" data-b="'+SUMMON[n]+'">召喚</button>':'<button disabled>尚未製作</button>')+'</div>').join('')+'</div>').join('')+'</div>';document.getElementById('arenaBtn').onclick=()=>{inArena()?arenaExit():arenaEnter();};for(const b of B.querySelectorAll('button.sum'))b.onclick=()=>summonBoss(+b.dataset.b);}
   try{langApply&&0;}catch(e){}}
 
 // =====================================================================
@@ -3484,11 +3484,13 @@ function sideGodRays(info,cx0,cy0,wts){const sun=SIDE.sun;if(!sun)return;const d
 function makeArena(){const b=baseBoss({kind:'arena',name:'Arena',cn:'戰鬥場',song:'mirror',col:'#b8a0ff',hp:1e9,phaseAt:[]});b.idle=()=>{};b.phases=[[()=>false]];return b;}
 BOSSES.push(makeArena);const ARENA_I=BOSSES.length-1;
 {const _sf=startFight;startFight=function(i){_sf(i);if(boss&&boss.kind==='arena'){mirror=null;boss.dormant=true;boss.hidden=true;boss.x=-99999;introT=0;}};}
-function inArena(){return state==='fight'&&boss&&boss.kind==='arena';}
+function inArena(){return (state==='fight'||state==='dead'||state==='win')&&TOWN.inFight&&!!P;}
+const SUMMON={'鏡中銀影':0}; // 已完成、可召喚的 Boss（BOSSES 的編號）
+function summonBoss(bi){invClose();if(state==='world'){sideSave();saveGame();}TOWN.inFight=true;startFight(bi);}
 function arenaEnter(){if(state!=='world')return;let n=0;for(const u of UNLOCKS){if((u.kind==='服裝'||u.kind==='髮型')&&!has(u.id)){SAVE.unlocked=Object.assign(SAVE.unlocked||{},{[u.id]:1});n++;}}
   sideSave();saveGame();invClose();TOWN.inFight=true;startFight(ARENA_I);if(n){pop(P.x+P.w/2,P.y-14,'測試版：已解鎖所有外觀','#ffe9a8',true);}}
 function arenaExit(){invClose();TOWN.inFight=false;worldEnter(true);}
-addEventListener('keydown',e=>{if(e.key==='Tab'&&(inArena()||(state==='dead'&&boss&&boss.kind==='arena'))){e.preventDefault();invToggle();}});
+addEventListener('keydown',e=>{if(e.key==='Tab'&&inArena()){e.preventDefault();invToggle();}});
 
 // =====================================================================
 //  主世界暫停（Esc）：介面風格同主選單
