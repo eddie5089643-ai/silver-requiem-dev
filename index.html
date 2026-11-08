@@ -3545,7 +3545,7 @@ function makeDragonKing(){
     if(t===0){b.ca=Math.atan2(b.y-c.y,b.x-c.x);b.cd=Math.random()<.5?1:-1;b.cs=0;SFX.roar();glint(b,false);}
     // 像豬鯊：繞著玩家轉圈，速度逐漸加快，身體跟著移動方向旋轉（側身振翅）
     const dur=p2?240:200,R=250,top=TAU/(p2?62:78);b.cs=Math.min(top,b.cs+top/40);b.ca+=b.cd*b.cs;
-    const tx=c.x+Math.cos(b.ca)*R,ty=c.y-40+Math.sin(b.ca)*R*.75,px=b.x,py=b.y;b.x=lerp(b.x,tx,.3);b.y=lerp(b.y,Math.min(ty,GROUND-90),.3);
+    const tx=c.x+Math.cos(b.ca)*R,ty=c.y-110+Math.sin(b.ca)*R*.75,px=b.x,py=b.y;b.x=lerp(b.x,tx,.3);b.y=lerp(b.y,ty,.3); // 轉圈不受地板／牆壁限制
     const vx=b.x-px,vy=b.y-py;if(Math.hypot(vx,vy)>.5){const na=Math.atan2(vy,vx);b.rot=b.rot==null?na:b.rot+Math.atan2(Math.sin(na-b.rot),Math.cos(na-b.rot))*.35;}
     b.circling=t<dur-1;b.face=Math.cos(b.rot||0)<0?-1:1;if(Math.random()<.5)part(b.x+rnd(-40,40),b.y+rnd(-20,20),1,'#ffb050',1,14,1);
     if(t>24&&t%(p2?14:20)===0){const m=mouth(),a=Math.atan2(c.y-m.y,c.x-m.x);SFX.gun();
@@ -3558,7 +3558,7 @@ function makeDragonKing(){
     if(i>=N||b.stunT>0)return stun(b);
     if(k===0){b.side=b.x<c.x?-1:1;glint(b,last);b.dashing=false;}
     if(k<WU){flyTo(c.x+b.side*320,c.y-30,.08,9);faceP();if(k<WU-10)b.da=Math.atan2(c.y-(b.y-10),c.x-b.x);
-      if(k%8===0)fx.push({type:'tline',x:b.x,y:b.y-10,x2:b.x+Math.cos(b.da)*900,y2:b.y-10+Math.sin(b.da)*900,life:9,max:9,col:last?'#ffe9a8':'#ff2e4a'});return false;}
+      return false;}
     if(k===WU){const sp=p2?18:15;b.vx=Math.cos(b.da)*sp;b.vy=Math.sin(b.da)*sp;b.face=b.vx<0?-1:1;b.dashing=true;SFX.dash();SFX.roar();addShake(5);
       strike({kind:'cap',b,r:26,life:DA,parry:last,dmg:45,seg:()=>{const h=hurtSeg(b);return [h.a[0],h.a[1],h.b[0],h.b[1]];},onDeflect:()=>{b.vx=-b.vx*.4;b.vy=-6;b.dashing=false;b.stunT=90;b.hurtF=12;flash=.6;flashCol='255,233,168';addShake(10);SFX.clang(true);}});}
     if(k<WU+DA){b.x+=b.vx;b.y+=b.vy;if(b.y>GROUND-70){b.y=GROUND-70;b.vy=-Math.abs(b.vy)*.3;}if(b.x<80||b.x>WW-80)b.vx*=-.3;if(k%2===0)part(b.x+rnd(-30,30),b.y+rnd(-20,20),2,'#ff9a3a',1.5,18,1);return false;}
@@ -3578,13 +3578,21 @@ SUMMON['受混沌侵蝕心智的龍王']=DRAGON_I;
 {const _rb=runBoss;runBoss=function(b){_rb(b);if(b.kind==='dragon'&&!b.dead&&!b.stunT&&state==='fight'&&P&&!P.dead&&b.trans<=0){const h=hurtSeg(b),c=pc();if(ptSeg(c.x,c.y,h.a[0],h.a[1],h.b[0],h.b[1])<h.r+4)hurt(b.dashing?45:25);}
   if(b.kind==='dragon'){b.fr+=b.circling?.28:b.dashing?0:(b.stunT>0?.06:.16);if(b.ai!==b._lai){b._lai=b.ai;b.circling=false;}}};}
 {const _db=drawBoss;drawBoss=function(){const b=boss;if(b&&b.kind==='dragon'){drawDragon(b);return;}_db();};}
+const DK_TINT={};
+function dkTint(key,col){const id=key+col;if(DK_TINT[id])return DK_TINT[id];const im=DK_IMG[key+'_img'];if(!im||!im.complete)return null;
+  const c=mk(im.width,im.height),x=c.getContext('2d');x.drawImage(im,0,0);x.globalCompositeOperation='source-atop';x.fillStyle=col;x.fillRect(0,0,c.width,c.height);return DK_TINT[id]=c;}
 function drawDragon(b){if(b.dead&&b.deathT>420)return;
+  // 殘影（轉圈、衝撞時）：紫色→暗橘漸層，不用白色
+  b.trail=b.trail||[];for(const t of b.trail){const a=t.life/t.max,tc=dkTint(t.key,a>.5?'#8a4ad8':'#c2541e');if(!tc)continue;
+    g.save();g.translate(t.x,t.y);g.rotate(t.da);g.scale(t.f,1);g.globalAlpha=a*.45;g.imageSmoothingEnabled=false;g.drawImage(tc,-t.ox,-t.oy);g.restore();t.life--;}
+  b.trail=b.trail.filter(t=>t.life>0);
   // 懸停／盤旋：45 度振翅（6 幀）；衝刺：側身圖（翅膀收起）
   const spin=b.circling&&!b.dead,dash=b.dashing||spin,k=Math.floor(b.fr)%6,key=spin?'fly'+k:dash?'fly2':'hover'+k,im=DK_IMG[key+'_img'],gl=DK_IMG[key+'_glow'];if(!im||!im.complete)return;
   const f=b.face<0?1:-1,ox=dash?150:143,oy=dash?170:172,x=Math.round(b.x),y=Math.round(b.y+(b.stunT>0?Math.sin(frameN/3)*2:0)),pulse=.6+.4*Math.sin(frameN/12);
   const da=spin?(f>0?b.rot-Math.PI:b.rot):dash?Math.atan2(b.vy,Math.abs(b.vx))*(f>0?-1:1)*.6:0;
   for(const [ctx,img,al] of [[gg,gl,pulse*(b.phase>=1?1:.75)],[g,im,b.dead?Math.max(0,1-b.deathT/420):1]]){ctx.save();ctx.translate(x,y);ctx.rotate(da);ctx.scale(f,1);ctx.globalAlpha=al;ctx.imageSmoothingEnabled=false;ctx.drawImage(img,-ox,-oy);
     if(ctx===g&&b.hurtF>0){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.35;ctx.drawImage(img,-ox,-oy);}ctx.restore();}
+  if((spin||b.dashing)&&!b.dead&&frameN%3===0)b.trail.push({x,y,da,f,ox,oy,key,life:14,max:14});
   b.rx=x;b.ry=y;b.handL=[0,0];}
 </script>
 <script>
