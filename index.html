@@ -1757,7 +1757,7 @@ function update(){
   for(const q of ghosts){q.life--;if(q.life<=0)q.snap.used=false;}ghosts=ghosts.filter(q=>q.life>0);
   for(const q of pops){q.life--;q.y-=.45;}pops=pops.filter(q=>q.life>0);
   // 背景階段
-  const tgt=boss&&!boss.dormant?boss.phase+(boss.off||0):0;bgL+= (tgt-bgL)*.02;
+  const tgt=boss&&!boss.dormant&&!boss.fixedBg?boss.phase+(boss.off||0):0; // fixedBg：背景不隨階段變化bgL+= (tgt-bgL)*.02;
   // 天氣
   const th=THEMES[boss.song],ph=Math.round(bgL),wf=th[Math.min(ph,th.length-1)].fx;
   if(wf==='mote'&&frameN%6===0)weather.push({x:rnd(0,W),y:H+4,vx:rnd(-.1,.1),vy:-rnd(.2,.5),life:400,col:'rgba(255,255,255,.5)',s:1});
@@ -3537,7 +3537,7 @@ function bossPreview(n){const pnl=document.querySelector('#invRoot .panel');let 
 //  二階（50% 以下，混沌完全甦醒）：盤旋更快、火球兩發一組；四連衝撞，衝撞後炸出一圈混沌火球
 // =====================================================================
 function makeDragonKing(){
-  const b=baseBoss({kind:'dragon',name:'The Corrupted Dragon King',cn:'受混沌侵蝕心智的龍王',song:'mirror',col:'#ff7a2a',track:7,hp:7000,phaseAt:[.5],flyer:true,face:-1,gap:40});
+  const b=baseBoss({kind:'dragon',name:'The Corrupted Dragon King',cn:'受混沌侵蝕心智的龍王',song:'mirror',col:'#ff7a2a',track:7,hp:7000,phaseAt:[.66,.33],flyer:true,face:-1,gap:40,fixedBg:true});
   b.y=GROUND-240;b.fr=0;
   const C=()=>pc(),fs=()=>b.face<0?1:-1; // 圖面朝左；fs=1 時不翻轉
   const mouth=()=>b.circling?{x:b.x+Math.cos(b.rot)*70,y:b.y+Math.sin(b.rot)*70}:b.dashing?{x:b.x-70*fs(),y:b.y-16}:{x:b.x-32*fs(),y:b.y-38};
@@ -3545,32 +3545,33 @@ function makeDragonKing(){
   const faceP=()=>{b.face=C().x<b.x?-1:1;};
   b.idle=b=>{const c=C(),side=b.x<c.x?-1:1;flyTo(c.x+side*280,c.y-170+Math.sin(b.anim/30)*14,.04,5);faceP();};
   // A. 盤旋火球（參考豬鯊：繞著玩家轉圈，一邊吐出會追蹤的火球）
-  const circle=(b,t)=>{const c=C(),p2=b.phase>=1;
+  const circle=(b,t)=>{const c=C(),p2=b.phase>=1,p3=b.phase>=2;
     if(t===0){b.ca=Math.atan2(b.y-c.y,b.x-c.x);b.cd=Math.random()<.5?1:-1;b.cs=0;SFX.roar();glint(b,false);}
     // 像豬鯊：繞著玩家轉圈，速度逐漸加快，身體跟著移動方向旋轉（側身振翅）
-    const dur=p2?240:200,R=250,top=TAU/(p2?62:78);b.cs=Math.min(top,b.cs+top/40);b.ca+=b.cd*b.cs;
+    const dur=p3?260:p2?240:200,R=250,top=TAU/(p3?50:p2?62:78);b.cs=Math.min(top,b.cs+top/40);b.ca+=b.cd*b.cs;
     const tx=c.x+Math.cos(b.ca)*R,ty=c.y-110+Math.sin(b.ca)*R*.75,px=b.x,py=b.y;b.x=lerp(b.x,tx,.3);b.y=lerp(b.y,ty,.3); // 轉圈不受地板／牆壁限制
     const vx=b.x-px,vy=b.y-py;if(Math.hypot(vx,vy)>.5){const na=Math.atan2(vy,vx);b.rot=b.rot==null?na:b.rot+Math.atan2(Math.sin(na-b.rot),Math.cos(na-b.rot))*.35;}
     b.circling=t<dur-1;b.face=Math.cos(b.rot||0)<0?-1:1;if(Math.random()<.5)part(b.x+rnd(-40,40),b.y+rnd(-20,20),1,'#ffb050',1,14,1);
-    if(t>24&&t%(p2?14:20)===0){const m=mouth(),a=Math.atan2(c.y-m.y,c.x-m.x);SFX.gun();
+    if(t>24&&t%(p3?11:p2?14:20)===0){const m=mouth(),a=Math.atan2(c.y-m.y,c.x-m.x);SFX.gun();
+      if(p3)shot(m.x,m.y,a-.4*b.cd,3.4,{shape:'fire',r:5,col:'#b890ff',dmg:26,life:280,home:70,hr:.03});
       shot(m.x,m.y,a,p2?4.2:3.6,{shape:'fire',r:6,col:'#ff7a2a',dmg:30,life:300,home:p2?110:90,hr:p2?.045:.035});
       if(p2)shot(m.x,m.y,a+.4*b.cd,3.4,{shape:'fire',r:5,col:'#b890ff',dmg:26,life:280,home:70,hr:.03});
       part(m.x,m.y,8,'#ffb050',2,16,1);}
     return t>=dur;};
   // B. 衝撞（連續衝刺穿過玩家；最後一次是黃光，可振刀彈反）
-  const charge=(b,t)=>{const c=C(),p2=b.phase>=1,N=p2?4:3,WU=p2?34:46,DA=34,RE=16,L=WU+DA+RE,i=Math.floor(t/L),k=t%L,last=i===N-1;
+  const charge=(b,t)=>{const c=C(),p2=b.phase>=1,p3=b.phase>=2,N=p3?5:p2?4:3,WU=p3?26:p2?34:46,DA=34,RE=16,L=WU+DA+RE,i=Math.floor(t/L),k=t%L,last=i===N-1;
     if(i>=N||b.stunT>0)return stun(b);
     if(k===0){b.side=b.x<c.x?-1:1;glint(b,last);b.dashing=false;}
     if(k<WU){flyTo(c.x+b.side*320,c.y-30,.08,9);faceP();if(k<WU-10)b.da=Math.atan2(c.y-(b.y-10),c.x-b.x);
       return false;}
-    if(k===WU){const sp=p2?18:15;b.vx=Math.cos(b.da)*sp;b.vy=Math.sin(b.da)*sp;b.face=b.vx<0?-1:1;b.dashing=true;SFX.dash();SFX.roar();addShake(5);
+    if(k===WU){const sp=b.phase>=2?20:b.phase>=1?18:15;b.vx=Math.cos(b.da)*sp;b.vy=Math.sin(b.da)*sp;b.face=b.vx<0?-1:1;b.dashing=true;SFX.dash();SFX.roar();addShake(5);
       strike({kind:'cap',b,r:26,life:DA,parry:last,dmg:45,seg:()=>{const h=hurtSeg(b);return [h.a[0],h.a[1],h.b[0],h.b[1]];},onDeflect:()=>{b.vx=-b.vx*.4;b.vy=-6;b.dashing=false;b.stunT=90;b.hurtF=12;flash=.6;flashCol='255,233,168';addShake(10);SFX.clang(true);}});}
     if(k<WU+DA){b.x+=b.vx;b.y+=b.vy;if(b.y>GROUND-70){b.y=GROUND-70;b.vy=-Math.abs(b.vy)*.3;}if(b.x<80||b.x>WW-80)b.vx*=-.3;if(k%2===0)part(b.x+rnd(-30,30),b.y+rnd(-20,20),2,'#ff9a3a',1.5,18,1);return false;}
-    if(k===WU+DA){b.dashing=false;if(p2){ringShot(b.x,b.y-20,10,2.6,rnd(0,TAU),{shape:'fire',r:5,col:'#b890ff',dmg:24,life:260});SFX.boom&&SFX.boom();}}
+    if(k===WU+DA){b.dashing=false;if(p2){ringShot(b.x,b.y-20,p3?14:10,p3?3:2.6,rnd(0,TAU),{shape:'fire',r:5,col:'#b890ff',dmg:24,life:260});SFX.boom&&SFX.boom();}}
     b.vx*=.85;b.vy*=.85;b.x+=b.vx;b.y+=b.vy;return false;};
   // 被彈反後：失衡墜落一段時間（輸出機會）
   const stun=(b)=>{if(b.stunT>0){b.stunT--;b.vy=Math.min(b.vy+.35,6);b.vx*=.95;b.x+=b.vx;b.y+=b.vy;if(b.y>GROUND-80){b.y=GROUND-80;b.vy=0;}if(b.stunT%10===0)part(b.x+rnd(-30,30),b.y-40,3,'#ffe9a8',1.5,20,1);return b.stunT===0;}return true;};
-  b.phases=[[circle,charge,circle,charge],[charge,circle,charge,circle]];
+  b.phases=[[circle,charge,circle,charge],[charge,circle,charge,circle],[charge,circle,charge,charge,circle]];
   return b;}
 function hurtSeg(b){const f=b.face<0?1:-1;if(b.circling){const cx=Math.cos(b.rot),sy=Math.sin(b.rot);return {a:[b.x+cx*62,b.y+sy*62],b:[b.x-cx*96,b.y-sy*96],r:20};}return b.dashing?{a:[b.x-62*f,b.y-12],b:[b.x+96*f,b.y+4],r:20}:{a:[b.x-24*f,b.y-46],b:[b.x+16*f,b.y+70],r:26};}
 BOSSES.push(makeDragonKing);const DRAGON_I=BOSSES.length-1;
