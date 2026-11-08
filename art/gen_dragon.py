@@ -18,13 +18,13 @@ RAMPS={
 }
 OUT=hx('#06050a')
 class Sprite:
-  def __init__(s,W,H): s.W,s.H=W,H; s.parts=[]
+  def __init__(s,W,H,ox=0,oy=0): s.W,s.H=W,H; s.parts=[]; s.ox,s.oy=ox,oy
   def _new(s,mat,shift=0,tex=None):
     im=Image.new('L',(s.W,s.H),0); s.parts.append({'mat':mat,'im':im,'shift':shift,'tex':tex or mat}); return ImageDraw.Draw(im)
-  def poly(s,mat,pts,**k): s._new(mat,**k).polygon([tuple(map(float,p)) for p in pts],fill=255)
-  def ell(s,mat,cx,cy,rx,ry,**k): s._new(mat,**k).ellipse([cx-rx,cy-ry,cx+rx,cy+ry],fill=255)
+  def poly(s,mat,pts,**k): s._new(mat,**k).polygon([(float(p[0])+s.ox,float(p[1])+s.oy) for p in pts],fill=255)
+  def ell(s,mat,cx,cy,rx,ry,**k): cx+=s.ox;cy+=s.oy;s._new(mat,**k).ellipse([cx-rx,cy-ry,cx+rx,cy+ry],fill=255)
   def tube(s,mat,pts,w0,w1,**k):
-    d=s._new(mat,**k);n=len(pts)
+    d=s._new(mat,**k);pts=[(p[0]+s.ox,p[1]+s.oy) for p in pts];n=len(pts)
     # 沿著折線取樣，畫一連串圓（漸細的管狀：脖子、尾巴、四肢、角）
     seg=[]
     for i in range(n-1):
@@ -254,11 +254,22 @@ def wing(S,sh,th,R1,R2,mat,bone_shift=0,chaos=False,flip=1):
   return wr,tip,fs
 
 # ---------------- 45 度（面向左前方）----------------
-def three_q():
-  W,H=270,215;GY=210;S=Sprite(W,H)
-  wing(S,(112,86),-2.35,46,62,'memD',bone_shift=-2,flip=1)
-  S.tube('scaleD',[(150,174),(196,184),(236,190),(262,180)],9,2,shift=-1)
-  for t in[(186,178),(212,184),(236,186)]: S.spike('orange',t,(t[0]+3,t[1]-10),3,shift=-1)
+def three_q(k=None,N=6):
+  if k is None: W,H=270,220;S=Sprite(W,H);thn=-0.75
+  else:
+    ph=k/N*2*math.pi;f=(1-math.cos(ph))/2;thn=-1.45+f*1.75;bob=round(5*math.cos(ph))
+    W,H=300,350;S=Sprite(W,H,15,60+bob)
+  GY=210;thf=-2.35-(thn+0.75)*.95
+  wing(S,(112,86),thf,46,62,'memD',bone_shift=-2,flip=1)
+  # 尾巴：靜態時垂到地面再往後拖；懸停時整條往下垂、尾端微微擺動並捲起
+  if k is None: tp=[(150,168),(172,186),(188,204),(214,208),(244,206),(262,198)]
+  else:
+    sw=math.sin(ph+1.2)*6;tp=[(150,168),(168,190),(178,214),(182+sw*.4,238),(178+sw*.8,258),(168+sw,272),(158+sw,276)]
+  S.tube('scaleD',tp,10,2,shift=-1)
+  for i in range(1,len(tp)-2):
+    a,c=tp[i],tp[i+1];dx,dy=c[0]-a[0],c[1]-a[1];L=math.hypot(dx,dy) or 1;nx,ny=dy/L,-dx/L
+    if nx<0:nx,ny=-nx,-ny
+    m=((a[0]+c[0])/2,(a[1]+c[1])/2);S.spike('orange',m,(m[0]+nx*10,m[1]+ny*10),3-i*.3,shift=-1)
   S.tube('scaleD',[(110,140),(96,162)],9,6,shift=-1);S.tube('scaleD',[(96,162),(104,186)],6,4,shift=-1)
   S.poly('scaleD',[(92,186),(112,186),(108,GY-2),(84,GY-2)],shift=-1)
   for dx in(0,8,16): S.spike('claw',(86+dx,GY-4),(80+dx,GY+1),2,shift=-1)
@@ -287,7 +298,7 @@ def three_q():
   S.ell('scale',154,144,6,5)
   for a in(-.4,0,.4): S.spike('claw',(150,146),(142+a*10,158),2)
   S.spike('orange',(152,88),(172,26),7);S.spike('orange',(160,94),(182,52),4,shift=-1)
-  wing(S,(150,88),-0.75,52,70,'mem',flip=1,chaos=True)
+  wing(S,(150,88),thn,52,70,'mem',flip=1,chaos=True)
   S.poly('chaos',[(112,96),(120,104),(112,116),(104,104)])
   for a,l,w in[(-1.3,26,5.5),(-.8,20,4.5),(-1.8,16,4),(-.3,13,3.5)]: S.spike('chaos',(156,92),(156+math.cos(a)*l,92+math.sin(a)*l),w)
   S.poly('chaos',[(162,116),(176,122),(170,138),(158,134)])
@@ -339,7 +350,7 @@ def fly(k,N=6):
 
 import json,base64,io
 out={}
-for name,fn in[('front',front),('side',side),('q3',three_q)]+[(f'fly{k}',(lambda k=k:fly(k))) for k in range(6)]:
+for name,fn in[('front',front),('side',side),('q3',three_q)]+[(f'fly{k}',(lambda k=k:fly(k))) for k in range(6)]+[(f'hover{k}',(lambda k=k:three_q(k))) for k in range(6)]:
   img,gl=fn().render()
   img.save(f'dragon_{name}.png')
   if gl: gl.save(f'dragon_{name}_glow.png')
