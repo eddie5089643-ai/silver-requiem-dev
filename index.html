@@ -3536,15 +3536,18 @@ function makeDragonKing(){
   const b=baseBoss({kind:'dragon',name:'The Corrupted Dragon King',cn:'受混沌侵蝕心智的龍王',song:'mirror',col:'#ff7a2a',track:7,hp:7000,phaseAt:[.5],flyer:true,face:-1,gap:40});
   b.y=GROUND-240;b.fr=0;
   const C=()=>pc(),fs=()=>b.face<0?1:-1; // 圖面朝左；fs=1 時不翻轉
-  const mouth=()=>b.dashing?{x:b.x-118*fs(),y:b.y-36}:{x:b.x-58*fs(),y:b.y-58};
+  const mouth=()=>b.circling?{x:b.x+Math.cos(b.rot)*112,y:b.y+Math.sin(b.rot)*112}:b.dashing?{x:b.x-118*fs(),y:b.y-36}:{x:b.x-58*fs(),y:b.y-58};
   const flyTo=(tx,ty,k=.06,mx=7)=>{ty=Math.min(ty,GROUND-115);b.vx=lerp(b.vx,clamp((tx-b.x)*k,-mx,mx),.2);b.vy=lerp(b.vy,clamp((ty-b.y)*k,-mx,mx),.2);b.x+=b.vx;b.y+=b.vy;};
   const faceP=()=>{b.face=C().x<b.x?-1:1;};
   b.idle=b=>{const c=C(),side=b.x<c.x?-1:1;flyTo(c.x+side*280,c.y-170+Math.sin(b.anim/30)*14,.04,5);faceP();};
   // A. 盤旋火球（參考豬鯊：繞著玩家轉圈，一邊吐出會追蹤的火球）
   const circle=(b,t)=>{const c=C(),p2=b.phase>=1;
-    if(t===0){b.ca=Math.atan2(b.y-c.y,b.x-c.x);b.cd=Math.random()<.5?1:-1;SFX.roar();glint(b,false);}
-    const dur=p2?260:200,R=240;b.ca+=b.cd*TAU/(p2?120:150);
-    const tx=c.x+Math.cos(b.ca)*R,ty=c.y-40+Math.sin(b.ca)*R*.75;b.x=lerp(b.x,tx,.16);b.y=lerp(b.y,Math.min(ty,GROUND-115),.16);faceP();
+    if(t===0){b.ca=Math.atan2(b.y-c.y,b.x-c.x);b.cd=Math.random()<.5?1:-1;b.cs=0;SFX.roar();glint(b,false);}
+    // 像豬鯊：繞著玩家轉圈，速度逐漸加快，身體跟著移動方向旋轉（側身振翅）
+    const dur=p2?240:200,R=250,top=TAU/(p2?62:78);b.cs=Math.min(top,b.cs+top/40);b.ca+=b.cd*b.cs;
+    const tx=c.x+Math.cos(b.ca)*R,ty=c.y-40+Math.sin(b.ca)*R*.75,px=b.x,py=b.y;b.x=lerp(b.x,tx,.3);b.y=lerp(b.y,Math.min(ty,GROUND-90),.3);
+    const vx=b.x-px,vy=b.y-py;if(Math.hypot(vx,vy)>.5){const na=Math.atan2(vy,vx);b.rot=b.rot==null?na:b.rot+Math.atan2(Math.sin(na-b.rot),Math.cos(na-b.rot))*.35;}
+    b.circling=t<dur-1;b.face=Math.cos(b.rot||0)<0?-1:1;if(Math.random()<.5)part(b.x+rnd(-40,40),b.y+rnd(-20,20),1,'#ffb050',1,14,1);
     if(t>24&&t%(p2?14:20)===0){const m=mouth(),a=Math.atan2(c.y-m.y,c.x-m.x);SFX.gun();
       shot(m.x,m.y,a,p2?4.2:3.6,{shape:'fire',r:6,col:'#ff7a2a',dmg:30,life:300,home:p2?110:90,hr:p2?.045:.035});
       if(p2)shot(m.x,m.y,a+.4*b.cd,3.4,{shape:'fire',r:5,col:'#b890ff',dmg:26,life:280,home:70,hr:.03});
@@ -3565,7 +3568,7 @@ function makeDragonKing(){
   const stun=(b)=>{if(b.stunT>0){b.stunT--;b.vy=Math.min(b.vy+.35,6);b.vx*=.95;b.x+=b.vx;b.y+=b.vy;if(b.y>GROUND-70){b.y=GROUND-70;b.vy=0;}if(b.stunT%10===0)part(b.x+rnd(-30,30),b.y-40,3,'#ffe9a8',1.5,20,1);return b.stunT===0;}return true;};
   b.phases=[[circle,charge,circle,charge],[charge,circle,charge,circle]];
   return b;}
-function hurtSeg(b){const f=b.face<0?1:-1;return b.dashing?{a:[b.x-96*f,b.y-34],b:[b.x+44*f,b.y+4],r:24}:{a:[b.x-40*f,b.y-62],b:[b.x+12*f,b.y+56],r:30};}
+function hurtSeg(b){const f=b.face<0?1:-1;if(b.circling){const cx=Math.cos(b.rot),sy=Math.sin(b.rot);return {a:[b.x+cx*100,b.y+sy*100],b:[b.x-cx*130,b.y-sy*130],r:22};}return b.dashing?{a:[b.x-96*f,b.y-34],b:[b.x+44*f,b.y+4],r:24}:{a:[b.x-40*f,b.y-62],b:[b.x+12*f,b.y+56],r:30};}
 BOSSES.push(makeDragonKing);const DRAGON_I=BOSSES.length-1;
 while(BOSS_KEY.length<BOSSES.length-1)BOSS_KEY.push('arena');BOSS_KEY.push('dragonKing');
 SUMMON['受混沌侵蝕心智的龍王']=DRAGON_I;
@@ -3573,13 +3576,13 @@ SUMMON['受混沌侵蝕心智的龍王']=DRAGON_I;
 {const _sf=startFight;startFight=function(i){_sf(i);if(boss&&boss.kind==='dragon'){boss.x=WW/2+240;boss.y=GROUND-260;boss.pause=150;}};}
 // 身體碰撞傷害（不在衝撞時也會被撞到）
 {const _rb=runBoss;runBoss=function(b){_rb(b);if(b.kind==='dragon'&&!b.dead&&!b.stunT&&state==='fight'&&P&&!P.dead&&b.trans<=0){const h=hurtSeg(b),c=pc();if(ptSeg(c.x,c.y,h.a[0],h.a[1],h.b[0],h.b[1])<h.r+4)hurt(b.dashing?45:25);}
-  if(b.kind==='dragon')b.fr+=b.dashing?0:(b.stunT>0?.06:.16);};}
+  if(b.kind==='dragon'){b.fr+=b.circling?.28:b.dashing?0:(b.stunT>0?.06:.16);if(b.ai!==b._lai){b._lai=b.ai;b.circling=false;}}};}
 {const _db=drawBoss;drawBoss=function(){const b=boss;if(b&&b.kind==='dragon'){drawDragon(b);return;}_db();};}
 function drawDragon(b){if(b.dead&&b.deathT>420)return;
   // 懸停／盤旋：45 度振翅（6 幀）；衝刺：側身圖（翅膀收起）
-  const dash=b.dashing,k=Math.floor(b.fr)%6,key=dash?'fly2':'hover'+k,im=DK_IMG[key+'_img'],gl=DK_IMG[key+'_glow'];if(!im||!im.complete)return;
+  const spin=b.circling&&!b.dead,dash=b.dashing||spin,k=Math.floor(b.fr)%6,key=spin?'fly'+k:dash?'fly2':'hover'+k,im=DK_IMG[key+'_img'],gl=DK_IMG[key+'_glow'];if(!im||!im.complete)return;
   const f=b.face<0?1:-1,ox=dash?150:143,oy=dash?170:172,x=Math.round(b.x),y=Math.round(b.y+(b.stunT>0?Math.sin(frameN/3)*2:0)),pulse=.6+.4*Math.sin(frameN/12);
-  const da=dash?Math.atan2(b.vy,Math.abs(b.vx))*(f>0?-1:1)*.6:0;
+  const da=spin?(f>0?b.rot-Math.PI:b.rot):dash?Math.atan2(b.vy,Math.abs(b.vx))*(f>0?-1:1)*.6:0;
   for(const [ctx,img,al] of [[gg,gl,pulse*(b.phase>=1?1:.75)],[g,im,b.dead?Math.max(0,1-b.deathT/420):1]]){ctx.save();ctx.translate(x,y);ctx.rotate(da);ctx.scale(f,1);ctx.globalAlpha=al;ctx.imageSmoothingEnabled=false;ctx.drawImage(img,-ox,-oy);
     if(ctx===g&&b.hurtF>0){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.35;ctx.drawImage(img,-ox,-oy);}ctx.restore();}
   b.rx=x;b.ry=y;b.handL=[0,0];}
