@@ -3429,7 +3429,8 @@ function invClose(){INV.open=false;const r=document.getElementById('invRoot');if
 .bl{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.bl .col h3{margin:0 0 8px;text-align:center;font-size:14px;letter-spacing:.2em;color:#b8a0ff}
 .brow{display:flex;align-items:center;gap:8px;padding:5px 8px;margin-bottom:5px;border:1px solid #3a3850;background:#12111a;font-size:12.5px}
 .arenabar{display:flex;align-items:center;gap:12px;justify-content:center;margin:0 0 12px;font-size:13px;color:#cfcfdc}.arenabar button{padding:6px 16px;border:1px solid #fff;background:#e8e8f2;color:#111;font:14px "Noto Serif TC",serif;letter-spacing:.2em;border-radius:3px;cursor:pointer}.arenabar button:hover{background:#fff}
-.brow i{font-style:normal;width:1.6em;color:#8a88a0;font-family:ui-monospace,monospace}.brow span{flex:1}.brow button{padding:2px 8px;border:1px solid #4a4860;background:#15141f;color:#7a7890;font:11px "Noto Serif TC",serif;border-radius:3px;cursor:not-allowed}.brow button.sum{border-color:#fff;background:#e8e8f2;color:#111;cursor:pointer;letter-spacing:.2em}.brow button.sum:hover{background:#fff}`;
+.brow i{font-style:normal;width:1.6em;color:#8a88a0;font-family:ui-monospace,monospace}.brow span{flex:1}.brow button{padding:2px 8px;border:1px solid #4a4860;background:#15141f;color:#7a7890;font:11px "Noto Serif TC",serif;border-radius:3px;cursor:not-allowed}.brow span.pv{color:#d8c8ff;cursor:pointer;text-decoration:underline dotted}.brow span.pv::after{content:' ✦';color:#b8a0ff}#bpv{position:absolute;inset:0;background:#09090d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:2}#bpv canvas{image-rendering:pixelated;width:600px;height:504px;max-height:70vh;width:auto}#bpv b{letter-spacing:.3em}#bpv button{padding:5px 18px;border:1px solid #e6e6ee;background:none;color:#fff;font:13px "Noto Serif TC",serif;letter-spacing:.3em;cursor:pointer;border-radius:3px}
+.brow button.sum{border-color:#fff;background:#e8e8f2;color:#111;cursor:pointer;letter-spacing:.2em}.brow button.sum:hover{background:#fff}`;
   document.head.appendChild(st);const r=document.createElement('div');r.id='invRoot';r.innerHTML='<div class="panel lace"><div class="tabs"><button data-t="bag">背包</button><button data-t="tree">技能樹</button><button data-t="boss">召喚 Boss</button></div><div class="body" id="invBody"></div><div class="hint">Tab 或 Esc 關閉</div></div>';
   document.body.appendChild(r);for(const b of r.querySelectorAll('.tabs button'))b.onclick=()=>{INV.tab=b.dataset.t;invUI();SFX.swap();};
   addEventListener('keydown',e=>{if(state==='world'&&INV.open&&e.key==='Escape'){invClose();e.stopImmediatePropagation();}},true);})();
@@ -3444,7 +3445,7 @@ function invUI(){const r=document.getElementById('invRoot');if(!r)return;r.style
     const c=document.getElementById('invMe'),x=c.getContext('2d');x.imageSmoothingEnabled=false;const PQ=inArena()?P:WP,rg=outfitRig(PQ.outfit||'adventurer'),q=Object.assign({},PQ,{vx:0,sw:null,onG:true,face:1,rx:0,ry:0});q.hair=makeChain(curHair()==='short'?4:9,0,-30);for(let i=0;i<40;i++)stepChain(q.hair,-2,-33,3.3*PS,.22,.86,0);
     const out=rg.render(z=>drawPlayerRig(z,q,PQ.pal||OUTFITS.adventurer.pal));x.drawImage(out,rg.ox-30,rg.oy-66,60,72,0,0,60,72);}
   else if(INV.tab==='tree'){B.innerHTML='<div class="tree">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.filter(n=>n!=='（待定）').map(n=>'<div class="node">🔒<b>'+n+'</b><small>打敗後解鎖・招式待設計</small></div>').join('')+'</div>').join('')+'</div>';}
-  else{let i=0;const ar=inArena();B.innerHTML='<div class="arenabar"><span>戰鬥場：鏡中銀影的地圖（自由練習）</span><button id="arenaBtn">'+(ar?'退出戰鬥場':'進入戰鬥場')+'</button></div><div class="bl">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.map(n=>'<div class="brow"><i>'+String(++i).padStart(2,'0')+'</i><span>'+n+'</span>'+(n in SUMMON?'<button class="sum" data-b="'+SUMMON[n]+'">召喚</button>':'<button disabled>尚未製作</button>')+'</div>').join('')+'</div>').join('')+'</div>';document.getElementById('arenaBtn').onclick=()=>{inArena()?arenaExit():arenaEnter();};for(const b of B.querySelectorAll('button.sum'))b.onclick=()=>summonBoss(+b.dataset.b);}
+  else{let i=0;const ar=inArena();B.innerHTML='<div class="arenabar"><span>戰鬥場：鏡中銀影的地圖（自由練習）</span><button id="arenaBtn">'+(ar?'退出戰鬥場':'進入戰鬥場')+'</button></div><div class="bl">'+BOSS_LIST.map(L=>'<div class="col"><h3>'+L.line+'</h3>'+L.list.map(n=>'<div class="brow"><i>'+String(++i).padStart(2,'0')+'</i><span>'+n+'</span>'+(n in SUMMON?'<button class="sum" data-b="'+SUMMON[n]+'">召喚</button>':'<button disabled>尚未製作</button>')+'</div>').join('')+'</div>').join('')+'</div>';document.getElementById('arenaBtn').onclick=()=>{inArena()?arenaExit():arenaEnter();};for(const b of B.querySelectorAll('button.sum'))b.onclick=()=>summonBoss(+b.dataset.b);for(const sp of B.querySelectorAll('.brow span')){const n=sp.textContent;if(n in PREVIEW){sp.classList.add('pv');sp.title='查看立繪';sp.onclick=()=>bossPreview(n);}}}
   try{langApply&&0;}catch(e){}}
 
 // =====================================================================
@@ -3510,6 +3511,124 @@ function wPause(on){SIDE.paused=!!on;const r=document.getElementById('wPause');i
 
 // 背包裡換外觀：立即套用到目前的角色（主世界或戰鬥場）
 function setLook(){const p=inArena()?P:WP;if(!p)return;p.outfit=curOutfit();p.pal=OUTFITS[p.outfit].pal;p.hair=makeChain(9,p.x+p.w/2,p.y);applyHair(p);}
+
+// Boss 立繪預覽（設計中的 Boss）
+const PREVIEW={'受混沌侵蝕心智的龍王':()=>buildDragonKing(frameN)};
+function bossPreview(n){const pnl=document.querySelector('#invRoot .panel');let d=document.getElementById('bpv');if(d)d.remove();d=document.createElement('div');d.id='bpv';
+  d.innerHTML='<canvas width="200" height="168"></canvas><b>'+n+'</b><small style="color:#a8a6c0">設計中・尚未製作戰鬥</small><button>返回</button>';pnl.appendChild(d);
+  const cv2=d.querySelector('canvas'),x2=cv2.getContext('2d');x2.imageSmoothingEnabled=false;let alive=true;d.querySelector('button').onclick=()=>{alive=false;d.remove();};
+  (function loop(){if(!alive||!document.body.contains(d))return;x2.clearRect(0,0,200,168);x2.drawImage(PREVIEW[n](),0,0);setTimeout(()=>requestAnimationFrame(loop),120);})();}
+
+
+// =====================================================================
+//  受混沌侵蝕心智的龍王（主線一最終 Boss）：像素立繪
+//  參考構圖：直立雙足、展開雙翼、橘紅角冠與肩刺、深色鱗甲；造型為原創
+//  混沌元素：白＋紫光外框，內部是星空
+// =====================================================================
+function buildDragonKing(t){t=t||0;
+  const Wd=200,Hd=168,cx=100,GY=164;
+  const mkc=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
+  const P={
+    r(x,X,Y,w,h,c){x.fillStyle=c;x.fillRect(Math.round(X),Math.round(Y),Math.round(w),Math.round(h));},
+    line(x,x0,y0,x1,y1,c,t=1){x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);y1=Math.round(y1);x.fillStyle=c;const dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let e=dx+dy;for(;;){x.fillRect(x0-(t>>1),y0-(t>>1),t,t);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>=dy){e+=dy;x0+=sx;}if(e2<=dx){e+=dx;y0+=sy;}}},
+    disc(x,cx,cy,r,c){x.fillStyle=c;const R2=r*r;for(let j=-r;j<=r;j++){const w=Math.floor(Math.sqrt(Math.max(0,R2-j*j)));x.fillRect(Math.round(cx-w),Math.round(cy+j),w*2+1,1);}},
+    poly(x,pts,c){x.fillStyle=c;let y0=1e9,y1=-1e9;for(const p of pts){y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1]);}
+      for(let y=Math.ceil(y0);y<=Math.floor(y1);y++){const xs=[];for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];if((a[1]<=y&&b[1]>y)||(b[1]<=y&&a[1]>y))xs.push(a[0]+(y-a[1])*(b[0]-a[0])/(b[1]-a[1]));}
+        xs.sort((p,q)=>p-q);for(let i=0;i+1<xs.length;i+=2){const l=Math.round(xs[i]),r=Math.round(xs[i+1]);x.fillRect(l,y,r-l+1,1);}}}};
+  const C=mkc(Wd,Hd),x=C.getContext('2d');
+  // 鏡像對稱：先畫左半邊，再翻到右邊
+  const sym=(fn)=>{fn((X)=>X,1);fn((X)=>2*cx-X,-1);};
+  // 色盤
+  const K={scD:'#1a1c14',sc:'#2c3020',scM:'#3e4430',scL:'#5a6242',belly:'#6a6440',bellyD:'#4a4630',
+    wD:'#24180f',w:'#3c2a1c',wM:'#56402a',wL:'#76583a',bone:'#2a1e14',boneL:'#5a4430',
+    or:'#d8501e',orL:'#ff8a3a',orD:'#8a2a12',orH:'#ffc070',eye:'#e8c8ff'};
+  // ---- 尾巴（身後，往左下捲）----
+  {const pts=[];for(let i=0;i<=20;i++){const k=i/20;pts.push([cx-8-k*78,GY-30+k*22-Math.sin(k*Math.PI)*10]);}
+    for(let i=0;i<pts.length;i++){const w=Math.round(5*(1-i/pts.length))+1;P.disc(x,pts[i][0],pts[i][1],w,K.sc);P.disc(x,pts[i][0],pts[i][1]-1,Math.max(1,w-2),K.scM);}
+    for(let i=2;i<pts.length-2;i+=3)P.poly(x,[[pts[i][0]-2,pts[i][1]-5],[pts[i][0]+2,pts[i][1]-5],[pts[i][0],pts[i][1]-10]],K.orD);}
+  // ---- 翅膀（身後）----
+  sym((X,s)=>{const sh=[X(cx-20),66],wr=[X(cx-58),40],tip=[X(cx-96),30];
+    const fingers=[[X(cx-98),60],[X(cx-92),88],[X(cx-80),112],[X(cx-60),122]];
+    // 翼膜：分段，越外越亮
+    const mem=[sh,wr,tip,...fingers,[X(cx-34),104]];P.poly(x,mem,K.w);
+    for(let i=0;i<fingers.length;i++){const a=i?fingers[i-1]:tip,b=fingers[i];P.poly(x,[wr,a,[(a[0]+b[0])/2+s*4,(a[1]+b[1])/2-2],b],i%2?K.wM:K.w);}
+    P.poly(x,[sh,wr,[X(cx-50),70],[X(cx-30),96]],K.wD);
+    // 翼膜邊緣的破損鋸齒
+    for(let i=0;i<fingers.length;i++){const a=i?fingers[i-1]:tip,b=fingers[i];for(let k=1;k<4;k++){const px=a[0]+(b[0]-a[0])*k/4,py=a[1]+(b[1]-a[1])*k/4;P.poly(x,[[px-2,py-2],[px+2,py-2],[px+s*2,py+3]],K.wD);}}
+    // 翼骨
+    P.line(x,sh[0],sh[1],wr[0],wr[1],K.bone,4);P.line(x,sh[0],sh[1]-1,wr[0],wr[1]-1,K.boneL,1);P.line(x,wr[0],wr[1],tip[0],tip[1],K.bone,3);
+    for(const f of fingers){P.line(x,wr[0],wr[1],f[0],f[1],K.bone,2);}
+    P.disc(x,wr[0],wr[1],4,K.bone);P.poly(x,[[wr[0]-s*2,wr[1]-3],[wr[0]+s*6,wr[1]-14],[wr[0]+s*4,wr[1]-2]],K.or);P.line(x,wr[0]+s*1,wr[1]-4,wr[0]+s*5,wr[1]-12,K.orL);});
+  // ---- 腿（逆關節）----
+  sym((X,s)=>{const hip=[X(cx-14),112],kn=[X(cx-28),128],an=[X(cx-20),150],ft=[X(cx-22),GY-2];
+    P.line(x,hip[0],hip[1],kn[0],kn[1],K.sc,12);P.line(x,hip[0]+s*2,hip[1]-2,kn[0]+s*2,kn[1]-3,K.scM,5);
+    P.line(x,kn[0],kn[1],an[0],an[1],K.sc,8);P.line(x,kn[0]+s*2,kn[1],an[0]+s*1,an[1],K.scM,3);
+    P.disc(x,kn[0],kn[1],6,K.scD);P.poly(x,[[kn[0]-s*3,kn[1]-4],[kn[0]-s*12,kn[1]-2],[kn[0]-s*3,kn[1]+3]],K.or);
+    P.poly(x,[[an[0]-9,an[1]],[an[0]+9,an[1]],[ft[0]+12,ft[1]],[ft[0]-12,ft[1]]],K.sc);P.r(x,ft[0]-12,ft[1]-1,24,2,K.scD);
+    for(const dx of [-12,-5,3,10]){P.poly(x,[[ft[0]+dx-2,ft[1]-3],[ft[0]+dx+3,ft[1]-3],[ft[0]+dx-1+(dx>0?3:-3),ft[1]+3]],K.or);P.r(x,ft[0]+dx,ft[1]-3,1,2,K.orL);}});
+  // ---- 軀幹（直立、鱗甲分段）----
+  P.poly(x,[[cx-20,70],[cx+20,70],[cx+24,86],[cx+18,116],[cx+10,124],[cx-10,124],[cx-18,116],[cx-24,86]],K.sc);
+  P.poly(x,[[cx-9,74],[cx+9,74],[cx+11,118],[cx-11,118]],K.bellyD);
+  for(let y=76;y<118;y+=6){const w=9+Math.round(Math.sin((y-70)/50*Math.PI)*2);P.r(x,cx-w,y,w*2,4,K.belly);P.r(x,cx-w,y,w*2,1,'#8a8456');}
+  sym((X,s)=>{for(let k=0;k<4;k++){const yy=80+k*9;P.poly(x,[[X(cx-12),yy],[X(cx-23),yy+3],[X(cx-21),yy+8],[X(cx-12),yy+6]],k%2?K.scM:K.sc);P.line(x,X(cx-12),yy,X(cx-22),yy+3,K.scL);}});
+  P.poly(x,[[cx-12,118],[cx+12,118],[cx+6,130],[cx-6,130]],K.scM);
+  // ---- 手臂＋前臂橘刃＋爪 ----
+  sym((X,s)=>{const sh=[X(cx-22),74],el=[X(cx-38),98],hd=[X(cx-40),120];
+    P.disc(x,sh[0],sh[1],9,K.sc);P.disc(x,sh[0]+s*1,sh[1]-2,6,K.scM);
+    P.line(x,sh[0],sh[1],el[0],el[1],K.sc,9);P.line(x,sh[0]-s*1,sh[1]-1,el[0]-s*1,el[1]-2,K.scM,3);
+    P.line(x,el[0],el[1],hd[0],hd[1],K.sc,8);
+    P.poly(x,[[el[0]-s*3,el[1]-4],[el[0]-s*16,el[1]+4],[hd[0]-s*12,hd[1]-2],[hd[0]-s*3,hd[1]-6]],K.or);P.line(x,el[0]-s*6,el[1]+1,hd[0]-s*10,hd[1]-4,K.orL);P.line(x,el[0]-s*14,el[1]+5,hd[0]-s*11,hd[1]-1,K.orD);
+    P.disc(x,hd[0],hd[1],5,K.scD);
+    P.disc(x,hd[0],hd[1]+2,6,K.sc);for(const a of [-.6,-.2,.2,.6]){const tx=hd[0]+Math.sin(a)*11*-s,ty=hd[1]+12;P.line(x,hd[0]+Math.sin(a)*4*-s,hd[1]+5,tx,ty,K.or,2);P.r(x,tx,ty,1,2,K.orH);}});
+  // ---- 肩上高聳的橘色刃刺 ----
+  sym((X,s)=>{const b=[X(cx-26),66];P.poly(x,[[b[0]-s*6,b[1]+4],[b[0]+s*6,b[1]+2],[X(cx-36),20],[X(cx-40),16]],K.or);
+    P.poly(x,[[b[0]-s*1,b[1]+2],[b[0]+s*4,b[1]],[X(cx-37),22]],K.orL);P.line(x,b[0]-s*5,b[1]+3,X(cx-39),18,K.orD);
+    P.poly(x,[[X(cx-30),70],[X(cx-14),64],[X(cx-16),72]],K.scL);});
+  // ---- 脖子與頭 ----
+  P.poly(x,[[cx-9,72],[cx+9,72],[cx+7,44],[cx-7,44]],K.sc);for(let y=46;y<72;y+=4)P.r(x,cx-5,y,10,2,K.scM);
+  // 頭：寬額、眉骨尖刺、往下收的長吻、兩側下顎
+  P.poly(x,[[cx-12,22],[cx+12,22],[cx+10,32],[cx+6,40],[cx+4,52],[cx-4,52],[cx-6,40],[cx-10,32]],K.sc);
+  P.poly(x,[[cx-8,24],[cx+8,24],[cx+5,38],[cx+3,50],[cx-3,50],[cx-5,38]],K.scM);P.r(x,cx-1,26,2,22,K.scL);
+  sym((X,s)=>{P.poly(x,[[X(cx-11),24],[X(cx-20),20],[X(cx-12),30]],K.scD);P.poly(x,[[X(cx-7),40],[X(cx-12),46],[X(cx-6),52],[X(cx-4),48]],K.scD);P.r(x,X(cx-6)-(s<0?2:0),52,3,3,K.orL);P.r(x,X(cx-3),48,1,1,'#000');});
+  P.r(x,cx-4,50,8,2,K.or);
+  // 眼睛：被侵蝕的紫白光
+  P.r(x,cx-9,29,5,2,K.eye);P.r(x,cx+4,29,5,2,K.eye);P.r(x,cx-8,29,2,1,'#ffffff');P.r(x,cx+6,29,2,1,'#ffffff');P.r(x,cx-10,28,6,1,K.scD);P.r(x,cx+4,28,6,1,K.scD);
+  // ---- 角冠（豎琴形橘角）----
+  sym((X,s)=>{const pts=[[X(cx-8),22],[X(cx-14),14],[X(cx-18),6],[X(cx-16),1]];for(let i=0;i<pts.length-1;i++)P.line(x,pts[i][0],pts[i][1],pts[i+1][0],pts[i+1][1],K.or,3);
+    P.line(x,X(cx-16),8,X(cx-17),1,K.orL,2);P.line(x,X(cx-12),15,X(cx-20),12,K.or,2);P.line(x,X(cx-14),11,X(cx-21),5,K.orD,2);P.line(x,X(cx-6),26,X(cx-14),30,K.orD,2);});
+  // ---- 混沌侵蝕：遮罩（之後填星空，外框白＋紫光）----
+  const M=mkc(Wd,Hd),mx=M.getContext('2d'),W_='#fff';
+  const shard=(bx,by,len,ang,w)=>{const dx=Math.cos(ang),dy=Math.sin(ang),nx=-dy,ny=dx;P.poly(mx,[[bx+nx*w,by+ny*w],[bx+dx*len*.7+nx*w*.6,by+dy*len*.7+ny*w*.6],[bx+dx*len,by+dy*len],[bx+dx*len*.7-nx*w*.6,by+dy*len*.7-ny*w*.6],[bx-nx*w,by-ny*w]],W_);};
+  // 頭頂中央的晶簇
+  for(const [a,l,w] of [[-1.57,24,4],[-1.95,15,3],[-1.2,15,3]])shard(cx,20,l,a,w);
+  // 胸口的混沌之核
+  P.poly(mx,[[cx,58],[cx+9,67],[cx,80],[cx-9,67]],W_);
+  // 右肩：大晶簇
+  for(const [a,l,w] of [[-1.25,26,5],[-.75,20,4],[-1.75,16,4],[-.25,14,4]])shard(cx+26,74,l,a,w);
+  // 右前臂被晶體包覆
+  P.poly(mx,[[cx+34,94],[cx+46,98],[cx+48,116],[cx+38,118]],W_);for(const [px,py,a,l,w] of [[cx+44,100,-.3,14,4],[cx+46,110,.2,14,4],[cx+44,118,.8,10,3]])shard(px,py,l,a,w);
+  // 右翼：翼膜一大塊變成星空，翼骨上長出晶刺
+  P.poly(mx,[[cx+56,82],[cx+84,66],[cx+94,90],[cx+80,108],[cx+60,104]],W_);
+  for(const [px,py,a,l,w] of [[cx+86,72,-1.1,16,4],[cx+92,90,-.2,14,4],[cx+78,108,.9,14,4],[cx+66,104,1.4,11,3]])shard(px,py,l,a,w);
+  // 右腳：侵蝕蔓延到腳踝
+  for(const [px,py,a,l,w] of [[cx+24,138,-.3,10,3]])shard(px,py,l,a,w);
+  // 套用：星空填色＋白／紫外框＋外光暈
+  const md=mx.getImageData(0,0,Wd,Hd).data,img=x.getImageData(0,0,Wd,Hd),d=img.data,inM=(X,Y)=>X>=0&&Y>=0&&X<Wd&&Y<Hd&&md[(Y*Wd+X)*4+3]>100;
+  const R=(()=>{let s=1234567;return()=>{s=(s*16807)%2147483647;return s/2147483647;};})();
+  const set=(i,r,g,b,a=255)=>{d[i]=r;d[i+1]=g;d[i+2]=b;d[i+3]=a;};
+  for(let Y=0;Y<Hd;Y++)for(let X=0;X<Wd;X++){const i=(Y*Wd+X)*4;
+    if(inM(X,Y)){const edge=!inM(X-1,Y)||!inM(X+1,Y)||!inM(X,Y-1)||!inM(X,Y+1);
+      if(edge){set(i,255,255,255);continue;}
+      const edge2=!inM(X-2,Y)||!inM(X+2,Y)||!inM(X,Y-2)||!inM(X,Y+2);if(edge2){set(i,184,144,255);continue;}
+      // 星空：深紫藍漸層＋星點（隨時間閃爍）
+      const k=(X*13+Y*7)%9/9;set(i,Math.round(18+k*14),Math.round(10+k*6),Math.round(38+k*30));
+      const h=((X*73856093)^(Y*19349663))>>>0;if(h%23===0){const tw=(Math.sin(t*.08+h)+1)/2;const v=Math.round(140+tw*115);set(i,v,v,255);}else if(h%61===1)set(i,200,160,255);}
+    else{let near=false;for(const [ox,oy] of [[-1,0],[1,0],[0,-1],[0,1]])if(inM(X+ox,Y+oy))near=true;if(near)set(i,160,110,255,255);}}
+  x.putImageData(img,0,0);
+  // 整體 1px 深色外框（和角色同一種像素風）
+  {const id=x.getImageData(0,0,Wd,Hd),dd=id.data,a=new Uint8Array(Wd*Hd);for(let i=0;i<Wd*Hd;i++)a[i]=dd[i*4+3]>100?1:0;
+    for(let Y=0;Y<Hd;Y++)for(let X=0;X<Wd;X++){const i=Y*Wd+X;if(a[i])continue;if((X>0&&a[i-1])||(X<Wd-1&&a[i+1])||(Y>0&&a[i-Wd])||(Y<Hd-1&&a[i+Wd])){dd[i*4]=8;dd[i*4+1]=6;dd[i*4+2]=10;dd[i*4+3]=255;}}x.putImageData(id,0,0);}
+  return C;}
 </script>
 <script>
 // =====================================================================
