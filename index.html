@@ -3584,7 +3584,7 @@ function dkTint(key,col){const id=key+col;if(DK_TINT[id])return DK_TINT[id];cons
 function drawDragon(b){if(b.dead&&b.deathT>420)return;
   // 殘影（轉圈、衝撞時）：紫色→暗橘漸層，不用白色
   b.trail=b.trail||[];for(const t of b.trail){const a=t.life/t.max,tc=dkTint(t.key,a>.5?'#8a4ad8':'#c2541e');if(!tc)continue;
-    g.save();g.translate(t.x,t.y);g.rotate(t.da);g.scale(t.f,1);g.globalAlpha=a*.45;g.imageSmoothingEnabled=false;g.drawImage(tc,-t.ox,-t.oy);g.restore();t.life--;}
+    g.save();g.translate(t.x,t.y);g.rotate(t.da);g.scale(t.f,1);g.globalAlpha=a*.315;g.imageSmoothingEnabled=false;g.drawImage(tc,-t.ox,-t.oy);g.restore();t.life--;}
   b.trail=b.trail.filter(t=>t.life>0);
   // 懸停／盤旋：45 度振翅（6 幀）；衝刺：側身圖（翅膀收起）
   const spin=b.circling&&!b.dead,dash=b.dashing||spin,k=Math.floor(b.fr)%6,key=spin?'fly'+k:dash?'fly2':'hover'+k,im=DK_IMG[key+'_img'],gl=DK_IMG[key+'_glow'];if(!im||!im.complete)return;
@@ -3592,7 +3592,7 @@ function drawDragon(b){if(b.dead&&b.deathT>420)return;
   const da=spin?(f>0?b.rot-Math.PI:b.rot):dash?Math.atan2(b.vy,Math.abs(b.vx))*(f>0?-1:1)*.6:0;
   for(const [ctx,img,al] of [[gg,gl,pulse*(b.phase>=1?1:.75)],[g,im,b.dead?Math.max(0,1-b.deathT/420):1]]){ctx.save();ctx.translate(x,y);ctx.rotate(da);ctx.scale(f,1);ctx.globalAlpha=al;ctx.imageSmoothingEnabled=false;ctx.drawImage(img,-ox,-oy);
     if(ctx===g&&b.hurtF>0){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.35;ctx.drawImage(img,-ox,-oy);}ctx.restore();}
-  if((spin||b.dashing)&&!b.dead&&frameN%3===0)b.trail.push({x,y,da,f,ox,oy,key,life:14,max:14});
+  if((spin||b.dashing)&&!b.dead&&frameN%3===0)b.trail.push({x,y,da,f,ox,oy,key,life:30,max:30});
   b.rx=x;b.ry=y;b.handL=[0,0];}
 </script>
 <script>
