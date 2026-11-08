@@ -1004,7 +1004,7 @@ function snapRig(src,col){const pool=snapPool();let c=pool.find(q=>!q.used);if(!
 let curCol='#ff2e4a';
 function shot(x,y,a,spd,o={}){const s=spd*D.spd;
   const b={x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:o.r||3,col:o.col||curCol,t:0,life:o.life||600,acc:o.acc||1,turn:o.turn||0,grav:o.grav||0,
-    shape:o.shape||'orb',dmg:o.dmg||22,maxV:o.maxV||99,ang:a,delay:o.delay||0,home:o.home||0,hr:o.hr||0};bullets.push(b);
+    shape:o.shape||'orb',dmg:o.dmg||22,maxV:o.maxV||99,ang:a,delay:o.delay||0,home:o.home||0,hr:o.hr||0,hd:o.hd||0,hsp:o.hsp||0};bullets.push(b);
   // 困難：彈幕密集度兩倍（每發旁邊多一發，劍氣與地波除外）
   if(GAMEDIFF===1&&!o.__tw&&b.shape!=='qi'&&b.shape!=='wave'){shotTw=-shotTw;shot(x,y,a+.085*shotTw,spd,Object.assign({},o,{__tw:1}));}
   return b;}
@@ -1738,7 +1738,8 @@ function update(){
   const c=pc();
   for(const q of bullets){q.t++;q.life--;
     if(q.turn){const a=Math.atan2(q.vy,q.vx)+q.turn,s=Math.hypot(q.vx,q.vy);q.vx=Math.cos(a)*s;q.vy=Math.sin(a)*s;}
-    if(q.home>0&&!P.dead){q.home--;const ta=Math.atan2(c.y-q.y,c.x-q.x),a=Math.atan2(q.vy,q.vx),d=Math.atan2(Math.sin(ta-a),Math.cos(ta-a)),na=a+clamp(d,-q.hr,q.hr),sp=Math.hypot(q.vx,q.vy);q.vx=Math.cos(na)*sp;q.vy=Math.sin(na)*sp;} // 追蹤玩家的火球
+    if(q.hd>0){q.hd--;if(q.hd===0&&q.hsp){const ha=Math.atan2(c.y-q.y,c.x-q.x);q.vx=Math.cos(ha)*q.hsp;q.vy=Math.sin(ha)*q.hsp;q.acc=1;part(q.x,q.y,8,'#ffb050',2,16,1);}}
+    else if(q.home>0&&!P.dead){q.home--;const ta=Math.atan2(c.y-q.y,c.x-q.x),a=Math.atan2(q.vy,q.vx),d=Math.atan2(Math.sin(ta-a),Math.cos(ta-a)),na=a+clamp(d,-q.hr,q.hr),sp=Math.hypot(q.vx,q.vy);q.vx=Math.cos(na)*sp;q.vy=Math.sin(na)*sp;} // 追蹤玩家的火球
     if(q.shape==='fire'&&q.t%2===0)parts.push({x:q.x+rnd(-2,2),y:q.y+rnd(-2,2),vx:-q.vx*.15+rnd(-.3,.3),vy:-q.vy*.15-rnd(0,.4),life:18,max:18,col:Math.random()<.5?'#ff9a3a':(q.col==='#b890ff'?'#b890ff':'#ff5a1a'),size:Math.random()<.5?2:1});
     if(q.acc!==1){q.vx*=q.acc;q.vy*=q.acc;}
     if(q.grav){q.vy=Math.min(q.vy+q.grav,q.maxV);}
@@ -1749,7 +1750,7 @@ function update(){
       if(Math.hypot(c.x-q.x,dy)<hr){if(hurt(q.dmg))q.life=0;}}}
   bullets=bullets.filter(q=>q.life>0);
   for(const l of lasers){l.t++;if(l.t===l.tele){addShake(5);}
-    if(l.t>l.tele&&!P.dead){const dx=Math.cos(l.a),dy=Math.sin(l.a),px=c.x-l.x,py=c.y-l.y;if(Math.abs(px*dy-py*dx)<l.w/2+3)hurt(l.dmg);}}
+    if(l.t>l.tele&&!P.dead){const dx=Math.cos(l.a),dy=Math.sin(l.a),px=c.x-l.x,py=c.y-l.y;if(Math.abs(px*dy-py*dx)<l.w/2+3&&(!l.one||px*dx+py*dy>0))hurt(l.dmg);}}
   lasers=lasers.filter(l=>l.t<l.tele+l.life);
   for(const q of parts){q.x+=q.vx;q.y+=q.vy;q.vy+=q.grav||0;q.vx*=.96;q.vy*=.96;q.life--;}
   parts=parts.filter(q=>q.life>0);if(parts.length>1800)parts.splice(0,parts.length-1800);
@@ -2018,11 +2019,11 @@ function drawBullets(){
   g.globalAlpha=1;gg.globalAlpha=1;
 }
 function drawLasers(){
-  for(const l of lasers){const dx=Math.cos(l.a)*l.len,dy=Math.sin(l.a)*l.len,act=l.t>l.tele;
-    if(!act){const k=l.t/l.tele;gg.globalAlpha=(frameN%6<3?.75:.35)*k+.1;gg.strokeStyle=l.col;gg.lineWidth=1;gg.beginPath();gg.moveTo(l.x-dx,l.y-dy);gg.lineTo(l.x+dx,l.y+dy);gg.stroke();
+  for(const l of lasers){const dx=Math.cos(l.a)*l.len,dy=Math.sin(l.a)*l.len,act=l.t>l.tele,bx=l.one?0:dx,by=l.one?0:dy;
+    if(!act){const k=l.t/l.tele;gg.globalAlpha=(frameN%6<3?.75:.35)*k+.1;gg.strokeStyle=l.col;gg.lineWidth=1;gg.beginPath();gg.moveTo(l.x-bx,l.y-by);gg.lineTo(l.x+dx,l.y+dy);gg.stroke();
       gg.globalAlpha=.1*k;gg.lineWidth=l.w;gg.stroke();}
     else{const f=Math.min(1,(l.tele+l.life-l.t)/8),wb=1+Math.sin(l.t)*.15;
-      for(const [ctx,w,col,al] of [[gg,l.w*2*wb,l.col,.5],[gg,l.w*wb,l.col,.9],[gg,l.w*.5,'#ffffff',1],[g,l.w*.4,'#ffffff',1]]){ctx.globalAlpha=al*f;ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineCap='butt';ctx.beginPath();ctx.moveTo(l.x-dx,l.y-dy);ctx.lineTo(l.x+dx,l.y+dy);ctx.stroke();}}
+      for(const [ctx,w,col,al] of [[gg,l.w*2*wb,l.col,.5],[gg,l.w*wb,l.col,.9],[gg,l.w*.5,'#ffffff',1],[g,l.w*.4,'#ffffff',1]]){ctx.globalAlpha=al*f;ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineCap='butt';ctx.beginPath();ctx.moveTo(l.x-bx,l.y-by);ctx.lineTo(l.x+dx,l.y+dy);ctx.stroke();}}
     gg.globalAlpha=1;g.globalAlpha=1;}
 }
 function drawAoes(){
@@ -3540,7 +3541,7 @@ function makeDragonKing(){
   const b=baseBoss({kind:'dragon',name:'The Corrupted Dragon King',cn:'受混沌侵蝕心智的龍王',song:'mirror',col:'#ff7a2a',track:7,hp:7000,phaseAt:[.66,.33],flyer:true,face:-1,gap:40,fixedBg:true});
   b.y=GROUND-240;b.fr=0;
   const C=()=>pc(),fs=()=>b.face<0?1:-1; // 圖面朝左；fs=1 時不翻轉
-  const mouth=()=>b.circling?{x:b.x+Math.cos(b.rot)*70,y:b.y+Math.sin(b.rot)*70}:b.dashing?{x:b.x-70*fs(),y:b.y-16}:{x:b.x-32*fs(),y:b.y-38};
+  const mouth=()=>b.pose==='front'?{x:b.x,y:b.y-38}:b.circling?{x:b.x+Math.cos(b.rot)*70,y:b.y+Math.sin(b.rot)*70}:b.dashing?{x:b.x-70*fs(),y:b.y-16}:{x:b.x-32*fs(),y:b.y-38};
   const flyTo=(tx,ty,k=.06,mx=7)=>{ty=Math.min(ty,GROUND-115);b.vx=lerp(b.vx,clamp((tx-b.x)*k,-mx,mx),.2);b.vy=lerp(b.vy,clamp((ty-b.y)*k,-mx,mx),.2);b.x+=b.vx;b.y+=b.vy;};
   const faceP=()=>{b.face=C().x<b.x?-1:1;};
   b.idle=b=>{const c=C(),side=b.x<c.x?-1:1;flyTo(c.x+side*280,c.y-170+Math.sin(b.anim/30)*14,.04,5);faceP();};
@@ -3561,7 +3562,7 @@ function makeDragonKing(){
   // B. 衝撞（連續衝刺穿過玩家；最後一次是黃光，可振刀彈反）
   const charge=(b,t)=>{const c=C(),p2=b.phase>=1,p3=b.phase>=2,N=p3?5:p2?4:3,WU=p3?26:p2?34:46,DA=34,RE=16,L=WU+DA+RE,i=Math.floor(t/L),k=t%L,last=i===N-1;
     if(i>=N||b.stunT>0)return stun(b);
-    if(k===0){b.side=b.x<c.x?-1:1;glint(b,last);b.dashing=false;}
+    if(k===0){b.circling=false;b.pose=null;b.side=b.x<c.x?-1:1;glint(b,last);b.dashing=false;}
     if(k<WU){flyTo(c.x+b.side*320,c.y-30,.08,9);faceP();if(k<WU-10)b.da=Math.atan2(c.y-(b.y-10),c.x-b.x);
       return false;}
     if(k===WU){const sp=b.phase>=2?20:b.phase>=1?18:15;b.vx=Math.cos(b.da)*sp;b.vy=Math.sin(b.da)*sp;b.face=b.vx<0?-1:1;b.dashing=true;SFX.dash();SFX.roar();addShake(5);
@@ -3571,9 +3572,21 @@ function makeDragonKing(){
     b.vx*=.85;b.vy*=.85;b.x+=b.vx;b.y+=b.vy;return false;};
   // 被彈反後：失衡墜落一段時間（輸出機會）
   const stun=(b)=>{if(b.stunT>0){b.stunT--;b.vy=Math.min(b.vy+.35,6);b.vx*=.95;b.x+=b.vx;b.y+=b.vy;if(b.y>GROUND-80){b.y=GROUND-80;b.vy=0;}if(b.stunT%10===0)part(b.x+rnd(-30,30),b.y-40,3,'#ffe9a8',1.5,20,1);return b.stunT===0;}return true;};
-  b.phases=[[circle,charge,circle,charge],[charge,circle,charge,circle],[charge,circle,charge,charge,circle]];
+  // 三階新招：正面飛到玩家上方 → 左右甩出火球（4 秒後轉向追蹤玩家）→ 嘴巴噴出三道火焰（有警示線）×3 次
+  const nova=(b,t)=>{const c=C();
+    if(t===0){b.pose='front';b.face=-1;b.circling=false;b.dashing=false;b.rot=null;SFX.roar();addShake(6);}
+    if(t<55){flyTo(c.x,c.y-250,.09,10);return false;}
+    b.vx*=.8;b.vy*=.8;b.x+=b.vx;b.y+=b.vy+Math.sin(t/14)*.3;
+    if(t>=55&&t<=115&&t%6===1){for(const sd of [-1,1]){const a=(sd<0?Math.PI:0)+sd*rnd(-.15,.55)*-1+rnd(-.2,.2);SFX.swing&&SFX.swing(true);
+        shot(b.x+sd*44,b.y-6,a,rnd(5,7),{shape:'fire',r:6,col:'#ff7a2a',dmg:30,life:640,acc:.965,hd:240,hsp:4.2,home:140,hr:.035});}
+      part(b.x,b.y,6,'#ffb050',2.5,18,1);}
+    for(const T0 of [80,165,250]){
+      if(t===T0){const m=mouth(),a=Math.atan2(c.y-m.y,c.x-m.x);b.jet=[];for(const da of [-.38,0,.38])b.jet.push(laser({x:m.x,y:m.y,a:a+da,len:1400,w:16,tele:46,life:24,dmg:45,col:'#ff7a2a',one:true}));SFX.charge&&SFX.charge();}
+      if(t===T0+46){SFX.boom&&SFX.boom();addShake(8);const m=mouth();part(m.x,m.y,30,'#ffb050',4,26,2);}}
+    if(t>=300){b.pose=null;return true;}return false;};
+  b.phases=[[circle,charge,circle,charge],[charge,circle,charge,circle],[nova,charge,circle,charge,nova,circle,charge]];
   return b;}
-function hurtSeg(b){const f=b.face<0?1:-1;if(b.circling){const cx=Math.cos(b.rot),sy=Math.sin(b.rot);return {a:[b.x+cx*62,b.y+sy*62],b:[b.x-cx*96,b.y-sy*96],r:20};}return b.dashing?{a:[b.x-62*f,b.y-12],b:[b.x+96*f,b.y+4],r:20}:{a:[b.x-24*f,b.y-46],b:[b.x+16*f,b.y+70],r:26};}
+function hurtSeg(b){const f=b.face<0?1:-1;if(b.pose==='front')return {a:[b.x,b.y-60],b:[b.x,b.y+70],r:42};if(b.circling){const cx=Math.cos(b.rot),sy=Math.sin(b.rot);return {a:[b.x+cx*62,b.y+sy*62],b:[b.x-cx*96,b.y-sy*96],r:20};}return b.dashing?{a:[b.x-62*f,b.y-12],b:[b.x+96*f,b.y+4],r:20}:{a:[b.x-24*f,b.y-46],b:[b.x+16*f,b.y+70],r:26};}
 BOSSES.push(makeDragonKing);const DRAGON_I=BOSSES.length-1;
 while(BOSS_KEY.length<BOSSES.length-1)BOSS_KEY.push('arena');BOSS_KEY.push('dragonKing');
 SUMMON['受混沌侵蝕心智的龍王']=DRAGON_I;
@@ -3592,8 +3605,8 @@ function drawDragon(b){if(b.dead&&b.deathT>420)return;
     g.save();g.translate(t.x,t.y);g.rotate(t.da);g.scale(t.f*DKS,DKS);g.globalAlpha=a*.315;g.imageSmoothingEnabled=false;g.drawImage(tc,-t.ox,-t.oy);g.restore();t.life--;}
   b.trail=b.trail.filter(t=>t.life>0);
   // 懸停／盤旋：45 度振翅（6 幀）；衝刺：側身圖（翅膀收起）
-  const spin=b.circling&&!b.dead,dash=b.dashing||spin,k=Math.floor(b.fr)%6,key=spin?'fly'+k:dash?'fly3':'hover'+k,im=DK_IMG[key+'_img'],gl=DK_IMG[key+'_glow'];if(!im||!im.complete)return;
-  const f=b.face<0?1:-1,ox=dash?55:52,oy=dash?76:64,x=Math.round(b.x),y=Math.round(b.y+(b.stunT>0?Math.sin(frameN/3)*2:0)),pulse=.6+.4*Math.sin(frameN/12);
+  const front=b.pose==='front'&&!b.dashing&&!b.circling,spin=b.circling&&!b.dead,dash=b.dashing||spin,k=Math.floor(b.fr)%6,key=front?'front':spin?'fly'+k:dash?'fly3':'hover'+k,im=DK_IMG[key+'_img'],gl=DK_IMG[key+'_glow'];if(!im||!im.complete)return;
+  const f=front?1:b.face<0?1:-1,ox=front?64:dash?55:52,oy=front?62:dash?76:64,x=Math.round(b.x),y=Math.round(b.y+(b.stunT>0?Math.sin(frameN/3)*2:0)),pulse=.6+.4*Math.sin(frameN/12);
   const da=spin?(f>0?b.rot-Math.PI:b.rot):dash?Math.atan2(b.vy,Math.abs(b.vx))*(f>0?-1:1)*.6:0;
   for(const [ctx,img,al,o] of [[gg,gl,pulse*(b.phase>=1?.3:.22),64],[g,im,b.dead?Math.max(0,1-b.deathT/420):1,0]]){ctx.save();ctx.translate(x,y);ctx.rotate(da);ctx.scale(f*DKS,DKS);ctx.globalAlpha=al;ctx.imageSmoothingEnabled=false;ctx.drawImage(img,-ox-o,-oy-o);
     if(ctx===g&&b.hurtF>0){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.35;ctx.drawImage(img,-ox,-oy);}ctx.restore();}
