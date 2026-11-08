@@ -226,9 +226,120 @@ def side():
   S.ell('chaos',66,44,3,1.6)
   return S
 
+
+def lerp2(a,b,t): return (a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t)
+def wing(S,sh,th,R1,R2,mat,bone_shift=0,chaos=False,flip=1):
+  # th：翼腕相對肩膀的角度；指骨由翼尖往身體方向張開
+  wr=(sh[0]+math.cos(th)*R1*flip,sh[1]+math.sin(th)*R1)
+  td=th-0.35*flip
+  tip=(wr[0]+math.cos(td)*R2*flip,wr[1]+math.sin(td)*R2)
+  fs=[]
+  for k,(da,L) in enumerate([(0.55,.92),(1.05,.8),(1.55,.68),(2.0,.55)]):
+    a=td+da*flip;fs.append((wr[0]+math.cos(a)*R2*L*flip,wr[1]+math.sin(a)*R2*L))
+  mid=lerp2(sh,fs[-1],.5)
+  pts=[sh,wr,tip]
+  for k,f in enumerate(fs):
+    prev=tip if k==0 else fs[k-1];m=lerp2(prev,f,.5);dx,dy=m[0]-wr[0],m[1]-wr[1];L=math.hypot(dx,dy) or 1
+    pts.append((m[0]-dx/L*R2*.12,m[1]-dy/L*R2*.12));pts.append(f)
+  pts.append(lerp2(sh,fs[-1],.55))
+  S.poly(mat,pts)
+  S.poly('memD' if mat=='mem' else mat,[sh,wr,lerp2(wr,fs[2],.45),lerp2(sh,fs[-1],.4)],shift=0)
+  for f in fs: S.tube('bone',[wr,f],2.2,1.0,shift=bone_shift)
+  S.tube('bone',[sh,wr,tip],4.5,1.6,shift=bone_shift)
+  S.spike('claw',wr,(wr[0]+math.cos(th-1.2*flip)*12*flip,wr[1]+math.sin(th-1.2*flip)*12),3,shift=bone_shift)
+  if chaos:
+    S.poly('chaos',[lerp2(wr,tip,.45),lerp2(wr,fs[0],.75),lerp2(wr,fs[1],.8),lerp2(wr,fs[1],.4)])
+    for f,(a,l) in zip([lerp2(wr,tip,.5),lerp2(wr,fs[0],.78),lerp2(wr,fs[1],.8)],[(-1.0,16),(-.2,14),(.8,13)]):
+      S.spike('chaos',f,(f[0]+math.cos(td+a)*l*flip,f[1]+math.sin(td+a)*l),4)
+  return wr,tip,fs
+
+# ---------------- 45 度（面向左前方）----------------
+def three_q():
+  W,H=270,215;GY=210;S=Sprite(W,H)
+  wing(S,(112,86),-2.35,46,62,'memD',bone_shift=-2,flip=1)
+  S.tube('scaleD',[(150,174),(196,184),(236,190),(262,180)],9,2,shift=-1)
+  for t in[(186,178),(212,184),(236,186)]: S.spike('orange',t,(t[0]+3,t[1]-10),3,shift=-1)
+  S.tube('scaleD',[(110,140),(96,162)],9,6,shift=-1);S.tube('scaleD',[(96,162),(104,186)],6,4,shift=-1)
+  S.poly('scaleD',[(92,186),(112,186),(108,GY-2),(84,GY-2)],shift=-1)
+  for dx in(0,8,16): S.spike('claw',(86+dx,GY-4),(80+dx,GY+1),2,shift=-1)
+  S.spike('orange',(104,90),(88,38),5,shift=-1)
+  S.tube('scaleD',[(102,94),(86,118)],7,5,shift=-1);S.tube('scaleD',[(86,118),(84,138)],5,4,shift=-1)
+  S.poly('orange',[(84,112),(72,124),(76,140),(84,134)],shift=-1)
+  for a in(-.4,0,.4): S.spike('claw',(84,140),(78+a*10,150),1.8,shift=-1)
+  S.poly('scale',[(98,86),(146,84),(162,104),(158,140),(140,154),(108,152),(96,134),(92,104)])
+  S.poly('belly',[(98,92),(124,90),(128,148),(106,146),(96,128)])
+  for k in range(5): y=96+k*10;S.poly('scale',[(130,y),(156,y+2),(156,y+8),(130,y+7)],shift=1 if k%2 else 0)
+  S.ell('scale',148,140,16,14,shift=1)
+  S.tube('scale',[(150,144),(168,164)],10,7);S.tube('scale',[(168,164),(156,188)],7,5)
+  S.spike('orange',(168,164),(182,160),4)
+  S.poly('scale',[(146,188),(164,188),(160,GY-2),(132,GY-2)])
+  for dx in(0,9,17): S.spike('claw',(136+dx,GY-4),(128+dx,GY+2),2.2)
+  S.tube('scale',[(120,90),(110,62),(102,48)],10,8)
+  S.poly('scale',[(116,32),(122,42),(116,56),(100,64),(82,62),(70,54),(78,44),(96,34)])
+  S.poly('scale',[(112,36),(116,44),(110,54),(98,58),(84,56),(78,50),(96,40)],shift=1)
+  S.poly('scaleD',[(110,58),(96,66),(80,66),(72,58),(84,62),(100,62)])
+  S.spike('claw',(74,56),(68,62),1.8);S.spike('claw',(84,63),(80,69),1.5)
+  S.tube('orange',[(110,36),(118,24),(124,12),(132,6)],3.2,1.2);S.tube('orange',[(118,24),(130,22)],1.8,1,shift=1)
+  S.tube('orange',[(96,36),(92,24),(86,14),(80,10)],2.4,1,shift=-1)
+  S.ell('scale',152,96,11,10,shift=1)
+  S.tube('scale',[(152,98),(166,122)],8,6);S.tube('scale',[(166,122),(156,142)],6,5)
+  S.poly('orange',[(166,114),(182,124),(172,146),(160,138)])
+  S.ell('scale',154,144,6,5)
+  for a in(-.4,0,.4): S.spike('claw',(150,146),(142+a*10,158),2)
+  S.spike('orange',(152,88),(172,26),7);S.spike('orange',(160,94),(182,52),4,shift=-1)
+  wing(S,(150,88),-0.75,52,70,'mem',flip=1,chaos=True)
+  S.poly('chaos',[(112,96),(120,104),(112,116),(104,104)])
+  for a,l,w in[(-1.3,26,5.5),(-.8,20,4.5),(-1.8,16,4),(-.3,13,3.5)]: S.spike('chaos',(156,92),(156+math.cos(a)*l,92+math.sin(a)*l),w)
+  S.poly('chaos',[(162,116),(176,122),(170,138),(158,134)])
+  for px,py,a,l,w in[(172,120,-.3,14,4),(174,132,.3,13,4)]: S.spike('chaos',(px,py),(px+math.cos(a)*l,py+math.sin(a)*l),w)
+  for a,l,w in[(-1.6,22,4.5),(-2.0,14,3),(-1.2,14,3)]: S.spike('chaos',(104,34),(104+math.cos(a)*l,34+math.sin(a)*l),w)
+  S.spike('chaos',(164,180),(178,176),3)
+  S.ell('chaos',104,46,3,1.6);S.ell('chaos',88,46,2,1.2)
+  return S
+
+# ---------------- 振翅飛行（側面，面向左，6 幀）----------------
+def fly(k,N=6):
+  W,H=320,260;S=Sprite(W,H);ph=k/N*2*math.pi;f=(1-math.cos(ph))/2  # 0=翅膀最高，1=最低
+  th=-1.8+f*2.55;bob=round(5*math.cos(ph));oy=70+bob
+  def P(x,y): return (x,y+oy)
+  wing(S,P(160,78),th-0.12,48,70,'memD',bone_shift=-2,flip=1)
+  sw=math.sin(ph)*4
+  S.tube('scale',[P(196,104),P(226,110),P(256,116+sw*.5),P(284,114+sw),P(306,106+sw*1.5)],11,2)
+  for i,t in enumerate([P(214,104),P(236,108),P(258,112+sw*.5),P(280,110+sw)]): S.spike('orange',t,(t[0]+8,t[1]-9),3.2-i*.4)
+  S.tube('scaleD',[P(186,112),P(202,128),P(222,132)],7,4,shift=-1)
+  for dx in(0,6): S.spike('claw',P(222+dx,132),P(230+dx,136),1.8,shift=-1)
+  S.poly('scale',[P(118,86),P(146,74),P(184,86),P(204,104),P(196,120),P(160,118),P(128,108)])
+  S.poly('belly',[P(122,96),P(136,104),P(164,116),P(196,120),P(186,110),P(150,104),P(128,92)])
+  for t in[P(150,76),P(166,80),P(182,88),P(196,98)]: S.spike('orange',t,(t[0]+9,t[1]-9),3)
+  S.ell('scale',*P(184,112),15,11,shift=1)
+  S.tube('scale',[P(188,116),P(208,128)],8,6);S.tube('scale',[P(208,128),P(226,126)],5,4)
+  for dx in(0,6,11): S.spike('claw',P(226,124+dx*.3),P(236,128+dx*.4),2)
+  S.tube('scale',[P(124,90),P(104,80),P(86,76),P(72,76)],11,8)
+  for (px,py) in[(112,80),(96,76)]: S.spike('orange',P(px,py-6),P(px+8,py-16),2.5)
+  dx,dy=-18,22+oy
+  hp=lambda pts:[(x+dx,y+dy) for x,y in pts]
+  S.poly('scale',hp([(98,38),(84,34),(62,40),(40,48),(36,54),(56,58),(78,58),(96,54)]))
+  S.poly('scale',hp([(92,40),(80,38),(62,44),(46,50),(60,52),(80,52)]),shift=1)
+  S.poly('scaleD',hp([(88,56),(70,60),(50,62),(42,58),(60,64),(84,66)]))
+  for a,b_,w in[((44,55),(38,62),2),((54,60),(50,66),1.6)]: S.spike('claw',hp([a])[0],hp([b_])[0],w)
+  S.tube('orange',hp([(86,36),(98,24),(110,14),(124,10)]),3.5,1.2)
+  S.tube('orange',hp([(96,26),(104,12)]),2,1,shift=1);S.tube('orange',hp([(92,40),(112,34),(126,30)]),2.2,1,shift=-1)
+  S.ell('scale',*P(138,96),10,9,shift=1)
+  S.tube('scale',[P(136,98),P(128,114)],7,5);S.tube('scale',[P(128,114),P(112,118)],5,4)
+  S.poly('orange',[P(130,108),P(134,122),P(118,124),P(116,118)])
+  for a in(-.3,0,.3): S.spike('claw',P(110,118),P(102,121+a*10),1.8)
+  S.spike('orange',P(144,84),P(176,46),6);S.spike('orange',P(136,88),P(156,58),3.5,shift=-1)
+  wing(S,P(148,82),th,56,84,'mem',flip=1,chaos=True)
+  for a,l,w in[(-1.5,24,5),(-1.0,18,4.5),(-2.0,15,4),(-.5,12,3.5)]: S.spike('chaos',P(140,90),(P(140,90)[0]+math.cos(a)*l,P(140,90)[1]+math.sin(a)*l),w)
+  S.poly('chaos',[P(118,112),P(130,116),P(122,126),P(112,122)])
+  for a,l,w in[(-1.7,22,4.5),(-2.2,14,3),(-1.2,14,3)]: S.spike('chaos',hp([(86,34)])[0],(hp([(86,34)])[0][0]+math.cos(a)*l,hp([(86,34)])[0][1]+math.sin(a)*l),w)
+  S.spike('chaos',P(214,126),P(226,120),3)
+  S.ell('chaos',*hp([(66,44)])[0],3,1.6)
+  return S
+
 import json,base64,io
 out={}
-for name,fn in[('front',front),('side',side)]:
+for name,fn in[('front',front),('side',side),('q3',three_q)]+[(f'fly{k}',(lambda k=k:fly(k))) for k in range(6)]:
   img,gl=fn().render()
   img.save(f'dragon_{name}.png')
   if gl: gl.save(f'dragon_{name}_glow.png')
