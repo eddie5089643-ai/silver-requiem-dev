@@ -3656,7 +3656,7 @@ function kvFrame(i){const key=i+KV_ARM;if(KV_FR[key])return KV_FR[key];for(const
   KV_PC=[px+19.5*PS_,py+28*PS_]; // 皇女中心（背後光環另外畫、會旋轉）
   const lw=R(200*S*LS);x.drawImage(KV_IMG.lower,(i%4)*200,Math.floor(i/4)*200,200,200,R(100*S-lw/2),R(Y0+98*S-38*S*LS),lw,lw); // 下半身：較小，頂端仍接在腰部
   const up=(im,sx=0,sy=0)=>x.drawImage(im,sx,sy,200,200,0,R(Y0)+(im===KV_IMG.upper?0:dy),R(200*S),R(200*S));
-  up(KV_IMG['farm_l_'+KV_ARM]);up(KV_IMG['farm_r_'+KV_ARM]);up(KV_IMG.uarm_l);up(KV_IMG.uarm_r); // 前臂、上臂（隨呼吸 1 像素）
+  up(KV_IMG.uarm_l);up(KV_IMG.uarm_r);up(KV_IMG['farm_l_'+KV_ARM]);up(KV_IMG['farm_r_'+KV_ARM]); // 上臂、前臂（前臂在上臂前面；隨呼吸 1 像素）
   up(KV_IMG.upper,(i%6)*200,Math.floor(i/6)*200);                                            // 上半身
   x.drawImage(KV_IMG.princess70,(i%4)*32,Math.floor(i/4)*45,32,45,px,py,32,45); // 預先平滑縮成 0.7 倍的皇女圖（避免最近鄰縮小把身體切掉）                 // 皇女（原尺寸）
   return KV_FR[key]=c;}
