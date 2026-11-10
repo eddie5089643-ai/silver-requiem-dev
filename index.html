@@ -1804,9 +1804,9 @@ function update(){
   weather=weather.filter(w=>w.life>0&&w.y<H+10&&w.y>-20);
   // 攝影機
   const mw=(mouse.x-W/2)*.12,mh=(mouse.y-H/2)*.12;
-  const zt=boss&&boss.hard&&boss.phase>=2&&!boss.dead&&!boss.dormant?.75:1;VZ=lerp(VZ,zt,.03);if(Math.abs(VZ-zt)<.002)VZ=zt;
+  const zt=boss&&boss.kind==='katavina'&&!boss.dead&&state==='fight'?.75:boss&&boss.hard&&boss.phase>=2&&!boss.dead&&!boss.dormant?.75:1; // 卡塔薇娜體型巨大：鏡頭拉遠VZ=lerp(VZ,zt,.03);if(Math.abs(VZ-zt)<.002)VZ=zt;
   const hw=W/VZ/2,hh=H/VZ/2;
-  {const so=MP.on&&P.dead&&MP.spec&&MP.robj[MP.spec];const c=so?{x:so.x+P.w/2,y:so.y+P.h/2}:pc();cam.x=lerp(cam.x,clamp(c.x+mw/VZ,hw,WW-hw)-W/2,.12);cam.y=lerp(cam.y,clamp(c.y-20+mh/VZ,hh,WH-hh)-H/2,.12);calcView();}
+  {const so=MP.on&&P.dead&&MP.spec&&MP.robj[MP.spec];const c=so?{x:so.x+P.w/2,y:so.y+P.h/2}:pc();cam.x=lerp(cam.x,clamp(c.x+mw/VZ,hw,WW-hw)-W/2,.12);cam.y=lerp(cam.y,clamp(c.y-20-(boss&&boss.kind==='katavina'&&!boss.dead?60:0)+mh/VZ,hh,WH-hh)-H/2,.12);calcView();}
 }
 
 // =====================================================================
@@ -3671,31 +3671,31 @@ function makeKatavina(){
   b.y=GROUND-140;b.fr=0;b.dr=0;b.haloA=0;b.haloV=.006;b.bombs=[];b.crys=null;
   const C=()=>pc(),SX=(f,ph)=>f*[1,.85,.7][b.phase|0]; // 階段越後越快
   const chest=()=>({x:b.x,y:b.y-70}),handL=()=>({x:b.x-93,y:b.y+17}),handR=()=>({x:b.x+93,y:b.y+17});
-  const fly=(tx,ty,k=.03,mx=3)=>{tx=clamp(tx,140,WW-140);ty=clamp(ty,GROUND-165,GROUND-130);b.vx=lerp(b.vx,clamp((tx-b.x)*k,-mx,mx),.08);b.vy=lerp(b.vy,clamp((ty-b.y)*k,-mx,mx),.08);b.x+=b.vx;b.y+=b.vy;};
+  const fly=(tx,ty,k=.03,mx=4.2)=>{ty+=Math.sin(b.anim/40)*18;tx=clamp(tx,140,WW-140);ty=clamp(ty,260,GROUND-130);b.vx=lerp(b.vx,clamp((tx-b.x)*k,-mx,mx),.08);b.vy=lerp(b.vy,clamp((ty-b.y)*k,-mx,mx),.08);b.x+=b.vx;b.y+=b.vy;};
   const sweepX=t=>C().x+Math.sin(t/70)*240; // 在玩家上方左右來回
-  b.idle=b=>{fly(C().x,GROUND-150,.015,1.5);b.dr=0;};
+  b.idle=b=>{fly(C().x+Math.sin(b.anim/90)*160,C().y-110,.02,2.6);b.dr=0;};
   const GOLD='#ffcf6a',VIO='#c06aff',PINK='#ff7ad8';
   // A. 混沌爆彈：左右來回，胸口射出巨大慢速爆彈，落地或時間到炸成一圈火焰，火焰散開後短暫追蹤玩家
-  const blast=(b,t)=>{const p=b.phase|0,D_=p>=2?260:300,iv=Math.round(SX(52));fly(sweepX(t),GROUND-200,.03,2.6);
+  const blast=(b,t)=>{const p=b.phase|0,D_=p>=2?260:300,iv=Math.round(SX(52));fly(sweepX(t),C().y-120,.03,3.4);
     if(t>20&&t%iv===0){const m=chest(),c=C(),a=Math.atan2(c.y-m.y,c.x-m.x);SFX.boom&&SFX.boom();addShake(3);
       const q=shot(m.x,m.y,a,2.6,{r:15,col:VIO,dmg:45,life:150});
       q.onEnd=q=>{const y=Math.min(q.y,GROUND-10),n=p>=1?12:10;SFX.boom&&SFX.boom();part(q.x,y,24,PINK,3,24,2);
         for(let i=0;i<n;i++)shot(q.x,y,i*TAU/n+rnd(-.1,.1),3.4,{shape:'fire',r:5,col:'#b890ff',dmg:28,life:260,acc:.95,hd:38,hsp:p>=2?4:3.4});};}
     return t>=D_;};
   // B. 焰滴：飛到玩家正上方，雙手落下懸停的火焰，一段時間後裂成十字（或斜十字）四發
-  const drops=(b,t)=>{const p=b.phase|0,iv=Math.round(SX(26));fly(C().x,GROUND-230,.04,3);
+  const drops=(b,t)=>{const p=b.phase|0,iv=Math.round(SX(26));fly(C().x,C().y-140,.04,4);
     if(t>15&&t<220&&t%iv===0){for(const h of [handL(),handR()]){SFX.gun&&SFX.gun();const q=shot(h.x,h.y,Math.PI/2,2.2,{shape:'fire',r:6,col:'#ff7a2a',dmg:30,life:Math.round(SX(70)),acc:.95});
       const diag=(t/iv)%2===1;q.onEnd=q=>{if(q.y>GROUND+20)return;part(q.x,q.y,8,GOLD,2,14,1);for(let k=0;k<4;k++)shot(q.x,q.y,k*Math.PI/2+(diag?Math.PI/4:0),p>=2?4.2:3.4,{r:4,col:GOLD,dmg:26,life:300});};}}
     return t>=260;};
   // C. 熔岩彈：拋出受重力影響的熔岩，落地後留下一段時間會燙人的熔岩池
-  const molten=(b,t)=>{const p=b.phase|0,iv=Math.round(SX(40));fly(sweepX(t+90),GROUND-210,.03,2.4);
+  const molten=(b,t)=>{const p=b.phase|0,iv=Math.round(SX(40));fly(sweepX(t+90),C().y-130,.03,3.2);
     if(t>10&&t<230&&t%iv===0){const h=t%(iv*2)===0?handL():handR(),c=C(),dx=c.x-h.x;SFX.gun&&SFX.gun();
       for(const off of p>=1?[-60,0,60]:[0]){const tx=dx+off+rnd(-20,20),T=60,vx=tx/T,vy=(GROUND-8-h.y)/T-.5*.18*T;
         const q=shot(h.x,h.y,Math.atan2(vy,vx),Math.hypot(vx,vy)/D.spd,{r:7,col:'#ff5a2a',dmg:32,life:200,grav:.18,maxV:12});
         q.onEnd=q=>{part(q.x,GROUND-6,14,'#ff9a3a',2.5,22,2);aoe({x:q.x,y:GROUND-4,rIn:0,rOut:28,tele:6,act:Math.round(SX(170)),dmg:24,col:'#ff6a2a'});};}}
     return t>=270;};
   // D. 繭：停下、減傷 90%、光環高速旋轉；一波波星環向外擴散，另有慢速瞄準的長槍（顏色不同）
-  const cocoon=(b,t)=>{const p=b.phase|0;fly(b.x,GROUND-170,.03,1.2);b.dr=.9;b.haloV=lerp(b.haloV,.06,.05);
+  const cocoon=(b,t)=>{const p=b.phase|0;fly(b.x,b.y,.03,1.2);b.dr=.9;b.haloV=lerp(b.haloV,.06,.05);
     if(t===0){SFX.roar&&SFX.roar();addShake(5);}
     const iv=Math.round(SX(24)),m=chest();
     if(t>30&&t<270&&t%iv===0){const n=p>=2?18:14;ringShot(m.x,m.y,n,2.6,t*.07,{r:4,col:PINK,dmg:30,life:420});part(m.x,m.y,10,PINK,2,16,1);}
@@ -3711,11 +3711,11 @@ function makeKatavina(){
     if(t===TELE){SFX.boom&&SFX.boom();addShake(9);flash=.3;flashCol='255,240,200';}
     if(t>=TELE+SW+20){b.dr=0;b.rays=null;return true;}return false;};
   // F. 聖彈：到玩家上方丟下聖彈，聖彈停在空中，持續放出緩慢飄向玩家的火花
-  const bomb=(b,t)=>{const p=b.phase|0;fly(C().x,GROUND-230,.035,2.8);
+  const bomb=(b,t)=>{const p=b.phase|0;fly(C().x,C().y-140,.035,3.6);
     if(t>20&&t%Math.round(SX(55))===0&&t<230){const h=t%2?handL():handR(),q=shot(h.x,h.y,Math.PI/2+rnd(-.5,.5),3,{r:11,col:GOLD,dmg:40,life:Math.round(SX(420)),acc:.93});b.bombs.push(q);SFX.boom&&SFX.boom();}
     return t>=260;};
   // G. 混沌水晶（三階）：玩家上方出現水晶，一段時間內不斷降下受重力影響的碎片
-  const crystal=(b,t)=>{fly(sweepX(t),GROUND-200,.03,2.4);
+  const crystal=(b,t)=>{fly(sweepX(t),C().y-120,.03,3.2);
     if(t===0){const c=C();b.crys={x:c.x,y:Math.max(60,c.y-220),t:0,life:600};SFX.glint&&SFX.glint();ring(b.crys.x,b.crys.y,VIO,3,30);}
     if(t%40===0&&t<200){const m=chest(),c=C();spread(m.x,m.y,Math.atan2(c.y-m.y,c.x-m.x),3,.4,3.4,{shape:'fire',r:5,col:'#b890ff',dmg:28,life:300});}
     return t>=220;};
